@@ -142,24 +142,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           boxShadow: collapsed ? undefined : '2px 0 8px rgba(0,0,0,0.06)',
         }}
       >
-        <div style={{
-          height: 64,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderBottom: '1px solid #f0f0f0',
-        }}>
-          <Text strong style={{ fontSize: collapsed ? 16 : 18, color: '#1677ff' }}>
-            {collapsed ? 'CRM' : 'CRM 系統'}
-          </Text>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div style={{
+            height: 64,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderBottom: '1px solid #f0f0f0',
+          }}>
+            <Text strong style={{ fontSize: collapsed ? 16 : 18, color: '#1677ff' }}>
+              {collapsed ? 'CRM' : 'CRM 系統'}
+            </Text>
+          </div>
+          <Menu
+            mode="inline"
+            selectedKeys={[getSelectedKey()]}
+            items={items}
+            onClick={({ key }) => router.push(key)}
+            style={{ border: 'none', flex: 1 }}
+          />
+          <div style={{
+            borderTop: '1px solid #f0f0f0',
+            padding: collapsed ? '8px 0' : '8px 16px',
+            textAlign: 'center',
+          }}>
+            <Text style={{ fontSize: 11, color: '#bbb' }}>
+              {collapsed ? 'v1.0.0' : 'Proton CRM v1.0.0'}
+            </Text>
+          </div>
         </div>
-        <Menu
-          mode="inline"
-          selectedKeys={[getSelectedKey()]}
-          items={items}
-          onClick={({ key }) => router.push(key)}
-          style={{ border: 'none' }}
-        />
       </Sider>
       <Layout>
         <Header style={{
