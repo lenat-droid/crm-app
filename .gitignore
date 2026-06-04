@@ -1,0 +1,6 @@
+# Ignore everything by default in the parent scope
+# This .gitignore applies when using /Users/tianziyi/.git
+node_modules/
+.next/
+*.db
+.DS_Store

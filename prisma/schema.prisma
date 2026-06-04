@@ -1,0 +1,418 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Roles: ADMIN / SALES_MGR / SALES
+// ProductInterest levels: NOT_CONTACTED / NOT_INTERESTED / AWARE / INTERESTED / HIGH_INTENT / PURCHASED
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("SALES")        // ADMIN | SALES_MGR | SALES
+  region    String?
+  phone     String?
+  active    Boolean  @default(true)
+  shareToken String? @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customers         Customer[]
+  pipelines         Pipeline[]
+  communications    Communication[]
+  visits            Visit[]
+  visitLogs         VisitLog[]
+  leads             Lead[]
+  subscriptions     Subscription[]        @relation("SubscriptionSalesPerson")
+  assignedTickets   SupportTicket[]       @relation("TicketAssignee")
+  createdSegments   CustomerSegment[]
+  exportJobs        ExportJob[]
+  customerLogs      CustomerLog[]
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  sapId     String?
+  name      String
+  city      String?
+  region    String?
+  address   String?
+  area      String?
+  storePhone        String?
+  floorManager      String?
+  floorManagerPhone String?
+  merchantContact       String?
+  merchantContactPhone  String?
+  keyman        String?
+  website       String?
+  type          String?    // 茶餐廳 / 正餐 / 酒樓 / 火鍋 / 快餐
+  storeType     String?    // 單店 / 連鎖
+  storeSize     String?
+  notes         String?
+
+  // === 400k-scale fields (from ontology) ===
+  status            String   @default("ACTIVE")    // ACTIVE | INACTIVE | ARCHIVED
+  tier              String   @default("SMB")       // ENTERPRISE | MID_MARKET | SMB
+  source            String?                        // IMPORT | LEAD_CONVERSION | MANUAL | API | PARTNER
+  onboardingStatus  String   @default("NOT_STARTED") // NOT_STARTED | IN_PROGRESS | COMPLETED
+  healthScore       Float?                         // 0-100 computed score
+  chatwootContactId Int?
+  firstPurchasedAt  DateTime?
+  lastActivityAt    DateTime?
+
+  // Product interest matrix (6 levels: NOT_CONTACTED / NOT_INTERESTED / AWARE / INTERESTED / HIGH_INTENT / PURCHASED)
+  posStatus             String @default("NOT_CONTACTED")
+  psWebsiteStatus       String @default("NOT_CONTACTED")
+  smtStatus             String @default("NOT_CONTACTED")
+  platformManagedStatus String @default("NOT_CONTACTED")
+  aiCamStatus           String @default("NOT_CONTACTED")
+  omeStatus             String @default("NOT_CONTACTED")
+  smartRobotStatus      String @default("NOT_CONTACTED")
+
+  contactStatus String?  // Proton整體接觸狀態
+
+  followerId Int?
+  follower   User?  @relation(fields: [followerId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pipeline         Pipeline?
+  productInterests ProductInterest[]
+  subscriptions    Subscription[]
+  supportTickets   SupportTicket[]
+  healthScoreObj   CustomerHealthScore?
+  visits           Visit[]
+  visitLogs        VisitLog[]
+  leads            Lead[]
+  signNowDocuments SignNowDocument[]
+  customerLogs      CustomerLog[]
+  profile           MerchantProfile?
+}
+
+// ── Merchant Profile (extended merchant info, 1:1 with Customer) ──
+model MerchantProfile {
+  id              Int    @id @default(autoincrement())
+  customerId      Int    @unique
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  // External platform IDs
+  kitchChatId     String?  // Kitch Chat unique ID
+  yelpId          String?  // Yelp biz id
+  googleId        String?  // Google Place id
+  psId            String?  // Pocket Store id
+
+  // Structured address
+  street          String?  // Street name
+  streetNumber    String?  // Street number
+  state           String?  // State
+  zipCode         String?  // Zip code
+  country         String?  // Country
+  lat             Float?   // Latitude
+  lng             Float?   // Longitude
+
+  // Merchant details
+  chineseName     String?  // Chinese name
+  email           String?  // Email
+  logoUrl         String?  // Logo URL
+  bannerUrl       String?  // Banner URL
+
+  // Operational data
+  priceLevel      Int?     // 1-4
+  rating          Float?   // 0-5
+  menuUrl         String?  // Menu URL
+  googleAiDesc    String?  // Google AI description
+  aiDesc          String?  // AI editorial summary
+
+  // Business hours
+  businessStatus  String?  // OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY
+  openingHours    String?  // JSON: [{day, open, close}]
+  specialHours    String?  // JSON: [{date, open, close}]
+
+  // Feature tags (JSON) — centralized boolean feature flags
+  // e.g. { takeout: true, delivery: true, hasWifi: false, outdoorSeating: true, ... }
+  features        String?
+
+  // Metadata
+  lastSyncedAt    DateTime?
+  dataSource      String?  // GOOGLE | HIFOOD | OME | MANUAL | MERCHANT
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([yelpId])
+  @@index([googleId])
+  @@index([state])
+}
+
+model Pipeline {
+  id            Int      @id @default(autoincrement())
+  customerId    Int      @unique
+  customer      Customer @relation(fields: [customerId], references: [id])
+  salesPersonId Int?
+  salesPerson   User?    @relation(fields: [salesPersonId], references: [id])
+  status        String   @default("已建联") // ⚠️ / 已建联 / 初步有意向 / 合作中
+  active        Boolean  @default(true)     // false when pipeline is closed/archived
+  closedAt      DateTime?
+
+  smt           String?
+  psWebsite     String?
+  aiCam         String?
+  agencyManaged String?
+
+  lastContactDate DateTime?
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  communications Communication[]
+}
+
+model Communication {
+  id           Int      @id @default(autoincrement())
+  pipelineId   Int
+  pipeline     Pipeline @relation(fields: [pipelineId], references: [id])
+  contactDate  DateTime
+  record       String
+  contactOrder Int
+  createdById  Int?
+  createdBy    User?    @relation(fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+model Visit {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  customer    Customer @relation(fields: [customerId], references: [id])
+  visitDate   DateTime
+  visitedById Int?
+  visitedBy   User?    @relation(fields: [visitedById], references: [id])
+  outcome     String?
+  notes       String?
+  createdAt   DateTime @default(now())
+}
+
+model VisitLog {
+  id                   Int      @id @default(autoincrement())
+  customerId           Int
+  customer             Customer @relation(fields: [customerId], references: [id])
+  visitDate            DateTime
+  visitedById          Int?
+  visitedBy            User?    @relation(fields: [visitedById], references: [id])
+
+  restaurantNeeds      String?
+  posBrand             String?
+  posMonthlyFee        String?
+  posTransactionRate   String?
+  posContractEnd       String?
+  scanToOrder          Boolean  @default(false)
+  kiosk                Boolean  @default(false)
+  hasCameras           Boolean?
+  cameraPurpose        String?
+  cameraMonthlyFee     String?
+  dailyPhoneOrders     String?
+  missedCalls          Boolean?
+  estimatedMissedCalls String?
+  biggestPainPoint     String?
+  otherNotes           String?
+  posDevicePhoto       String?
+  menuBoardPhoto       String?
+
+  createdAt DateTime @default(now())
+}
+
+model Lead {
+  id             Int      @id @default(autoincrement())
+  customerId     Int?
+  customer       Customer? @relation(fields: [customerId], references: [id])
+  name           String
+  phone          String?
+  contactPerson  String?
+  foodType       String?
+  posBrand       String?
+  needs          String?
+  status         String   @default("new") // new / contacted / converted / closed
+  source         String?  // WEBSITE | REFERRAL | COLD_CALL | EVENT | PARTNER | OTHER
+  score          Int?     // Lead score 0-100 (auto-calculated)
+  notes          String?
+  registeredById Int?
+  registeredBy   User?    @relation(fields: [registeredById], references: [id])
+  visitDate      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ── Product Catalog (dynamic, replaces hardcoded 7 products) ──
+model ProductCatalog {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique    // e.g. "posStatus", "smtStatus"
+  name      String               // e.g. "POS", "SMT"
+  category  String?              // CORE | ADDON | SERVICE | HARDWARE
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  productInterests ProductInterest[]
+  subscriptions    Subscription[]
+}
+
+// ── Normalized Product Interest Matrix (alongside denormalized Customer fields) ──
+model ProductInterest {
+  id         Int           @id @default(autoincrement())
+  customerId Int
+  customer   Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    ProductCatalog @relation(fields: [productId], references: [id], onDelete: Cascade)
+  status     String        @default("NOT_CONTACTED")
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([customerId, productId])
+}
+
+// ── Subscription Management (Phase 2.1) ──
+model Subscription {
+  id            Int      @id @default(autoincrement())
+  customerId    Int
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId     Int
+  product       ProductCatalog @relation(fields: [productId], references: [id])
+  plan          String   @default("MONTHLY")  // MONTHLY | QUARTERLY | SEMI_ANNUAL | ANNUAL
+  billingType   String   @default("RECURRING") // RECURRING | ONE_TIME
+  oneTimeAmount Float?   // USD, used when billingType=ONE_TIME
+  status        String   @default("ACTIVE")   // ACTIVE | CANCELLED | EXPIRED | TRIALING | PENDING_SIGNATURE
+  mrr           Float    @default(0)          // Monthly Recurring Revenue in USD
+  currency      String   @default("USD")
+  startDate     DateTime
+  endDate       DateTime?
+  cancelledAt   DateTime?
+  trialEndDate  DateTime?
+  autoRenew     Boolean  @default(true)
+  notes         String?
+  salesPersonId Int?
+  salesPerson   User?    @relation("SubscriptionSalesPerson", fields: [salesPersonId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  signNowDocuments SignNowDocument[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([endDate])
+}
+
+// ── Support Tickets (Phase 2.2) ──
+model SupportTicket {
+  id            Int      @id @default(autoincrement())
+  customerId    Int
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  subject       String
+  status        String   @default("OPEN")       // OPEN | RESOLVED | CLOSED | PENDING
+  priority      String   @default("MEDIUM")     // LOW | MEDIUM | HIGH | URGENT
+  source        String?                         // CHATWOOT | EMAIL | MANUAL | PHONE
+  chatwootConvId Int?
+  csatScore     Int?                            // 1-5
+  assignedToId  Int?
+  assignedTo    User?    @relation("TicketAssignee", fields: [assignedToId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  resolvedAt    DateTime?
+
+  messages TicketMessage[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([assignedToId])
+}
+
+model TicketMessage {
+  id              Int           @id @default(autoincrement())
+  ticketId        Int
+  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  content         String
+  authorType      String        @default("AGENT")  // AGENT | CUSTOMER | SYSTEM
+  isFromCustomer  Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+}
+
+// ── Customer Health Score (Phase 2.3) ──
+model CustomerHealthScore {
+  id                  Int      @id @default(autoincrement())
+  customerId          Int      @unique
+  customer            Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  overallScore        Float    @default(0)   // 0-100
+  engagementScore     Float?                 // based on activity recency
+  productAdoptionScore Float?                // based on # products with INTERESTED+
+  supportHealthScore  Float?                 // based on ticket volume + CSAT
+  subscriptionHealth  Float?                 // based on payment timeliness
+  churnRisk           String   @default("LOW")  // LOW | MEDIUM | HIGH
+  calculatedAt        DateTime @default(now())
+  createdAt           DateTime @default(now())
+}
+
+// ── Customer Edit History Log ──
+model CustomerLog {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  fieldName   String   // e.g. "name", "contactStatus", "phone"
+  oldValue    String?
+  newValue    String?
+  changedById Int?
+  changedBy   User?    @relation(fields: [changedById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([customerId])
+  @@index([customerId, createdAt])
+}
+model CustomerSegment {
+  id            Int      @id @default(autoincrement())
+  name          String   @unique
+  description   String?
+  queryConfig   String?   // JSON: filter criteria for dynamic segments
+  isDynamic     Boolean  @default(true)
+  customerCount Int      @default(0)
+  createdById   Int?
+  createdBy     User?    @relation(fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ── SignNow E-Signature Documents (Phase 3.5) ──
+model SignNowDocument {
+  id              Int      @id @default(autoincrement())
+  customerId      Int
+  customer        Customer @relation(fields: [customerId], references: [id])
+  subscriptionId  Int?
+  subscription    Subscription? @relation(fields: [subscriptionId], references: [id])
+  documentName    String
+  signNowDocId    String?
+  status          String   @default("DRAFT")  // DRAFT | SENT | SIGNED | EXPIRED | DECLINED
+  signedByCustomerAt DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ── Async Export / Bulk Operations (Phase 2.7) ──
+model ExportJob {
+  id            Int      @id @default(autoincrement())
+  type          String   // CUSTOMERS | SUBSCRIPTIONS | TICKETS | LEADS
+  status        String   @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED
+  filters       String?  // JSON: export filter criteria
+  fileUrl       String?
+  fileSize      Int?
+  rowCount      Int?
+  error         String?
+  requestedById Int?
+  requestedBy   User?    @relation(fields: [requestedById], references: [id])
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+}
