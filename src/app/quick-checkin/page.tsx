@@ -10,6 +10,7 @@ import dayjs from 'dayjs'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { qc, useLanguage } from '@/lib/i18n'
+import RecordTypeNav from '@/components/RecordTypeNav'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
@@ -214,6 +215,9 @@ export default function QuickCheckinPage() {
           {t.recordedBy}：{session?.user?.name}
         </div>
       </div>
+
+      {/* Record type navigation switcher */}
+      <RecordTypeNav active="checkin" />
 
       {shareUrl && (
         <Alert

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, Typography, Table, Tag, Button, message } from 'antd'
+import { Card, Typography, Table, Tag, Button, message, Breadcrumb } from 'antd'
 import { PlusOutlined, SwapRightOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import { useRouter } from 'next/navigation'
 import dayjs from 'dayjs'
@@ -91,6 +91,13 @@ export default function LeadsPage() {
 
   return (
     <AppLayout>
+      <Breadcrumb
+        items={[
+          { title: <a onClick={() => router.push('/records')}>記錄總覽</a> },
+          { title: '線索管理' },
+        ]}
+        style={{ marginBottom: 16 }}
+      />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
           <Title level={4} style={{ margin: 0 }}>線索管理</Title>

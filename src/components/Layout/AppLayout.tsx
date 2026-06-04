@@ -18,6 +18,7 @@ import {
   MenuUnfoldOutlined,
   UserOutlined,
   CustomerServiceOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons'
 
 const { Header, Sider, Content } = Layout
@@ -37,6 +38,8 @@ const menuGroups = [
     type: 'group' as const,
     label: '記錄類',
     children: [
+      { key: '/records', icon: <HistoryOutlined />, label: '记录总览' },
+      { key: '/leads/new', icon: <UserAddOutlined />, label: '新建线索' },
       { key: '/quick-checkin', icon: <CustomerServiceOutlined />, label: '每日速报' },
       { key: '/visits', icon: <EnvironmentOutlined />, label: '拜访记录' },
     ],
@@ -49,7 +52,6 @@ const menuGroups = [
       { key: '/customer-health', icon: <BarChartOutlined />, label: '客户健康' },
       { key: '/subscriptions', icon: <ProjectOutlined />, label: '訂閱管理' },
       { key: '/segments', icon: <ProjectOutlined />, label: '客户分群' },
-      { key: '/leads', icon: <UserAddOutlined />, label: '线索管理' },
       { key: '/support-tickets', icon: <CustomerServiceOutlined />, label: '客服工单' },
     ],
   },
@@ -103,7 +105,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith('/customer-health')) return '/customer-health'
     if (pathname.startsWith('/support-tickets')) return '/support-tickets'
     if (pathname.startsWith('/subscriptions')) return '/subscriptions'
-    if (pathname.startsWith('/leads')) return '/leads'
+    if (pathname.startsWith('/leads/new')) return '/leads/new'
+    if (pathname.startsWith('/records')) return '/records'
     if (pathname.startsWith('/admin/users')) return '/admin/users'
     if (pathname.startsWith('/exports')) return '/exports'
     if (pathname.startsWith('/products')) return '/products'

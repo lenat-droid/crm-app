@@ -5,6 +5,7 @@ import { Card, Typography, Form, Input, DatePicker, Select, Button, message, Bre
 import { useRouter } from 'next/navigation'
 import dayjs from 'dayjs'
 import AppLayout from '@/components/Layout/AppLayout'
+import RecordTypeNav from '@/components/RecordTypeNav'
 import { vr, useLanguage } from '@/lib/i18n'
 
 const { Title } = Typography
@@ -57,11 +58,12 @@ export default function NewVisitPage() {
     <AppLayout>
       <Breadcrumb
         items={[
-          { title: <a onClick={() => router.push(`/visits?lang=${lang}`)}>{t.title}</a> },
+          { title: <a onClick={() => router.push('/records')}>記錄總覽</a> },
           { title: t.newVisit },
         ]}
         style={{ marginBottom: 16 }}
       />
+      <RecordTypeNav active="visit" />
       <Title level={4} style={{ marginBottom: 24 }}>{t.newVisitTitle}</Title>
 
       <Card style={{ maxWidth: 600 }}>

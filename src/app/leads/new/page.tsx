@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Card, Typography, Form, Input, Select, Button, message, Breadcrumb, DatePicker } from 'antd'
 import { useRouter } from 'next/navigation'
 import AppLayout from '@/components/Layout/AppLayout'
+import RecordTypeNav from '@/components/RecordTypeNav'
 
 const { Title } = Typography
 const { TextArea } = Input
@@ -40,11 +41,12 @@ export default function NewLeadPage() {
     <AppLayout>
       <Breadcrumb
         items={[
-          { title: <a onClick={() => router.push('/leads')}>線索管理</a> },
+          { title: <a onClick={() => router.push('/records')}>記錄總覽</a> },
           { title: '新建線索' },
         ]}
         style={{ marginBottom: 16 }}
       />
+      <RecordTypeNav active="lead" />
       <Title level={4} style={{ marginBottom: 24 }}>新建線索</Title>
 
       <Card style={{ maxWidth: 600 }}>
