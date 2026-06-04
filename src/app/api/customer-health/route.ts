@@ -140,13 +140,15 @@ export async function GET(req: NextRequest) {
     prisma.customerHealthScore.count({ where: healthWhere }),
   ])
 
-  // Aggregations
+  // Aggregations (respect data scope)
   const aggregation = await prisma.customerHealthScore.aggregate({
     _avg: { overallScore: true },
+    where: healthWhere,
   })
   const riskCounts = await prisma.customerHealthScore.groupBy({
     by: ['churnRisk'],
     _count: true,
+    where: healthWhere,
   })
 
   return NextResponse.json({

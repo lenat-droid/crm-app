@@ -21,6 +21,22 @@ export async function GET() {
     pipelineWhere.customer = { region: scope.region as string }
   }
 
+  // Build subscription filter (through customer relation)
+  const subscriptionWhere: any = { status: 'ACTIVE' }
+  if (scope.followerId) {
+    subscriptionWhere.customer = { followerId: scope.followerId }
+  } else if (scope.region) {
+    subscriptionWhere.customer = { region: scope.region }
+  }
+
+  // Build health score filter (through customer relation)
+  const healthScoreWhere: any = {}
+  if (scope.followerId) {
+    healthScoreWhere.customer = { followerId: scope.followerId }
+  } else if (scope.region) {
+    healthScoreWhere.customer = { region: scope.region }
+  }
+
   // Run all queries in parallel
   const [
     totalCustomers,
@@ -54,11 +70,11 @@ export async function GET() {
     }),
 
     // Subscriptions: active count
-    prisma.subscription.count({ where: { status: 'ACTIVE' } }),
+    prisma.subscription.count({ where: subscriptionWhere }),
 
     // MRR: sum of active subscriptions
     prisma.subscription.aggregate({
-      where: { status: 'ACTIVE' },
+      where: subscriptionWhere,
       _sum: { mrr: true },
     }),
 
@@ -66,11 +82,13 @@ export async function GET() {
     prisma.customerHealthScore.groupBy({
       by: ['churnRisk'],
       _count: true,
+      where: healthScoreWhere,
     }),
 
     // Health score: average
     prisma.customerHealthScore.aggregate({
       _avg: { overallScore: true },
+      where: healthScoreWhere,
     }),
 
     // Customers by tier
