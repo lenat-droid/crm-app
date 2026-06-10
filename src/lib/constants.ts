@@ -49,3 +49,8 @@ export const PRODUCT_FIELDS = [
   'omeStatus',
   'smartRobotStatus',
 ] as const
+
+export const SUBSCRIPTION_PLANS = ['MONTHLY', 'QUARTERLY', 'SEMI_ANNUAL', 'ANNUAL'] as const
+export const BILLING_TYPES = ['RECURRING', 'ONE_TIME'] as const
+export const SUBSCRIPTION_STATUSES = ['ACTIVE', 'CANCELLED', 'EXPIRED', 'TRIALING', 'PENDING_SIGNATURE'] as const
+export const TICKET_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const

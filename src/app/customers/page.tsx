@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Table, Card, Button, Input, Select, Space, Tag, Typography, Modal, Form, message, Popconfirm } from 'antd'
-import { PlusOutlined, SearchOutlined, ReloadOutlined, InboxOutlined } from '@ant-design/icons'
+import { Table, Card, Button, Input, Select, Space, Tag, Typography, Modal, Form, Popconfirm, Tooltip } from 'antd'
+import { PlusOutlined, SearchOutlined, ReloadOutlined, FilterOutlined } from '@ant-design/icons'
 import { useRouter } from 'next/navigation'
 import AppLayout from '@/components/Layout/AppLayout'
+import { toastSuccess, handleApiError } from '@/lib/toast'
 
 const { Title } = Typography
 
@@ -70,12 +71,12 @@ export default function CustomersPage() {
         body: JSON.stringify(values),
       })
       if (!res.ok) throw new Error('Failed')
-      message.success('客戶創建成功')
+      toastSuccess('客戶創建成功')
       setCreateModalOpen(false)
       createForm.resetFields()
       fetchCustomers()
-    } catch {
-      message.error('創建失敗')
+    } catch (err) {
+      handleApiError(err, '創建失敗')
     } finally {
       setCreating(false)
     }
@@ -89,10 +90,10 @@ export default function CustomersPage() {
         body: JSON.stringify({ status: archive ? 'ARCHIVED' : 'ACTIVE' }),
       })
       if (!res.ok) throw new Error('Failed')
-      message.success(archive ? '客戶已歸檔（soft-delete）' : '客戶已恢復')
+      toastSuccess(archive ? '客戶已歸檔（soft-delete）' : '客戶已恢復')
       fetchCustomers()
-    } catch {
-      message.error('操作失敗')
+    } catch (err) {
+      handleApiError(err, '操作失敗')
     }
   }
 
@@ -100,15 +101,35 @@ export default function CustomersPage() {
     fetchCustomers()
   }, [page, pageSize, region, statusFilter, customerStatusFilter])
 
+  /** Highlight search keyword in text */
+  const highlightText = (text: string | null | undefined) => {
+    if (!text || !search) return text || '-'
+    const regex = new RegExp(`(${search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+    const parts = text.split(regex)
+    return parts.map((part, i) =>
+      regex.test(part)
+        ? <span key={i} style={{ backgroundColor: '#fffbe6', color: '#faad14', fontWeight: 600, padding: '0 1px', borderRadius: 2 }}>{part}</span>
+        : part
+    )
+  }
+
   const columns = [
     {
       title: '客戶名稱',
       dataIndex: 'name',
       key: 'name',
       width: 220,
+      sorter: (a: any, b: any) => a.name.localeCompare(b.name),
       render: (name: string, record: any) => (
-        <a onClick={() => router.push(`/customers/${record.id}`)}>{name}</a>
+        <a onClick={() => router.push(`/customers/${record.id}`)}>{highlightText(name)}</a>
       ),
+    },
+    {
+      title: '城市',
+      dataIndex: 'city',
+      key: 'city',
+      width: 100,
+      render: (city: string) => highlightText(city),
     },
     { title: '城市', dataIndex: 'city', key: 'city', width: 100 },
     { title: '區域', dataIndex: 'region', key: 'region', width: 130 },

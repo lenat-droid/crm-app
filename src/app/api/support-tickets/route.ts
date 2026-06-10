@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { validateCreateSupportTicket, validateUpdateSupportTicket, ValidationError } from '@/lib/validation/schemas'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -51,19 +52,25 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const data = await req.json()
-  if (!data.customerId || !data.subject) {
-    return NextResponse.json({ error: 'customerId and subject are required' }, { status: 400 })
+
+  let validated: ReturnType<typeof validateCreateSupportTicket>
+  try {
+    validated = validateCreateSupportTicket(data)
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
+    }
+    throw err
   }
 
   const ticket = await prisma.supportTicket.create({
     data: {
-      customerId: data.customerId,
-      subject: data.subject,
-      status: data.status || 'OPEN',
-      priority: data.priority || 'MEDIUM',
-      source: data.source || 'MANUAL',
-      assignedToId: data.assignedToId || null,
-      chatwootConvId: data.chatwootConvId || null,
+      customerId: validated.customerId,
+      subject: validated.subject,
+      status: 'OPEN',
+      priority: validated.priority || 'MEDIUM',
+      source: 'MANUAL',
+      assignedToId: validated.assignedToId || null,
     },
   })
 
@@ -75,17 +82,28 @@ export async function PATCH(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const data = await req.json()
-  const { id, ...fields } = data
-  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+  if (!data.id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+
+  let validated: ReturnType<typeof validateUpdateSupportTicket>
+  try {
+    validated = validateUpdateSupportTicket(data)
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
+    }
+    throw err
+  }
+
+  const updateData: Record<string, unknown> = { ...validated }
 
   // If resolving, set resolvedAt
-  if (fields.status === 'RESOLVED' || fields.status === 'CLOSED') {
-    fields.resolvedAt = new Date()
+  if (updateData.status === 'RESOLVED' || updateData.status === 'CLOSED') {
+    updateData.resolvedAt = new Date()
   }
 
   const ticket = await prisma.supportTicket.update({
-    where: { id },
-    data: fields,
+    where: { id: data.id },
+    data: updateData as any,
   })
 
   return NextResponse.json(ticket)

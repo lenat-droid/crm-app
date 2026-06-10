@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { validateCreateSubscription, ValidationError } from '@/lib/validation/schemas'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -57,24 +58,31 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const data = await req.json()
-  if (!data.customerId || !data.productId) {
-    return NextResponse.json({ error: 'customerId and productId are required' }, { status: 400 })
+
+  let validated: ReturnType<typeof validateCreateSubscription>
+  try {
+    validated = validateCreateSubscription(data)
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
+    }
+    throw err
   }
 
   const subscription = await prisma.subscription.create({
     data: {
-      customerId: data.customerId,
-      productId: data.productId,
-      plan: data.plan || 'MONTHLY',
-      billingType: data.billingType || 'RECURRING',
-      oneTimeAmount: data.billingType === 'ONE_TIME' ? (data.oneTimeAmount || 0) : null,
-      status: data.status || 'ACTIVE',
-      mrr: data.mrr || 0,
-      startDate: data.startDate ? new Date(data.startDate) : new Date(),
-      endDate: data.endDate ? new Date(data.endDate) : null,
-      trialEndDate: data.trialEndDate ? new Date(data.trialEndDate) : null,
-      autoRenew: data.billingType === 'ONE_TIME' ? false : (data.autoRenew !== false),
-      notes: data.notes || null,
+      customerId: validated.customerId,
+      productId: validated.productId,
+      plan: validated.plan || 'MONTHLY',
+      billingType: validated.billingType || 'RECURRING',
+      oneTimeAmount: validated.oneTimeAmount || null,
+      status: validated.status || 'ACTIVE',
+      mrr: validated.mrr,
+      startDate: new Date(validated.startDate),
+      endDate: validated.endDate ? new Date(validated.endDate) : null,
+      trialEndDate: validated.trialEndDate ? new Date(validated.trialEndDate) : null,
+      autoRenew: validated.billingType === 'ONE_TIME' ? false : (validated.autoRenew !== false),
+      notes: validated.notes || null,
       salesPersonId: session.user.id,
     },
   })

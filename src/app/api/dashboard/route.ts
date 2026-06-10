@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getDataScope } from '@/lib/auth-helpers'
+import dayjs from 'dayjs'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -52,6 +53,7 @@ export async function GET() {
     customersByTier,
     customersByRegion,
     pipelineStatusCounts,
+    allSubscriptions,
   ] = await Promise.all([
     // Basic counts
     prisma.customer.count({ where: customerWhere }),
@@ -113,6 +115,12 @@ export async function GET() {
       _count: true,
       where: pipelineWhere,
     }),
+
+    // All active subscriptions for MRR trend calculation
+    prisma.subscription.findMany({
+      where: subscriptionWhere,
+      select: { mrr: true, startDate: true, endDate: true, status: true, createdAt: true },
+    }),
   ])
 
   return NextResponse.json({
@@ -140,5 +148,49 @@ export async function GET() {
 
     // Pipeline funnel
     pipelineByStatus: pipelineStatusCounts.reduce((acc, r) => ({ ...acc, [r.status]: r._count }), {} as Record<string, number>),
+
+    // MRR trend: monthly MRR for the last 12 months
+    mrrTrend: computeMrrTrend(allSubscriptions),
+
+    // Health score distribution (detailed for pie chart)
+    healthDistribution: {
+      healthy: (churnRiskDistribution as unknown as Record<string, number>)['LOW'] || 0,
+      attention: (churnRiskDistribution as unknown as Record<string, number>)['MEDIUM'] || 0,
+      atRisk: (churnRiskDistribution as unknown as Record<string, number>)['HIGH'] || 0,
+    },
   })
+}
+
+function computeMrrTrend(subscriptions: Array<{ mrr: number; startDate: Date; endDate: Date | null; status: string; createdAt: Date }>) {
+  const now = dayjs()
+  const months: Array<{ month: string; mrr: number }> = []
+
+  for (let i = 11; i >= 0; i--) {
+    const monthStart = now.subtract(i, 'month').startOf('month')
+    const monthEnd = monthStart.endOf('month')
+
+    // Sum MRR of subscriptions that were active during this month
+    let monthMrr = 0
+    for (const sub of subscriptions) {
+      const subStart = dayjs(sub.startDate)
+      const subEnd = sub.endDate ? dayjs(sub.endDate) : now.add(1, 'year') // no end = still active
+
+      // Subscription overlaps with this month?
+      if (subStart.isBefore(monthEnd) && subEnd.isAfter(monthStart)) {
+        // For active subscriptions, count their MRR
+        if (sub.status === 'ACTIVE' || sub.status === 'TRIALING' ||
+            (sub.status === 'CANCELLED' && dayjs(sub.endDate).isAfter(monthStart)) ||
+            (sub.status === 'EXPIRED' && dayjs(sub.endDate).isAfter(monthStart))) {
+          monthMrr += sub.mrr
+        }
+      }
+    }
+
+    months.push({
+      month: monthStart.format('YYYY-MM'),
+      mrr: Math.round(monthMrr),
+    })
+  }
+
+  return months
 }

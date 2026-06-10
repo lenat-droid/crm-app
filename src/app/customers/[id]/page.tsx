@@ -4,14 +4,16 @@ import { useState, useEffect } from 'react'
 import {
   Card, Descriptions, Tag, Typography, Spin, Breadcrumb, Tabs, Select, Space,
   message, Button, Timeline, Modal, Form, Input, InputNumber, DatePicker, Table, Empty,
-  Progress, Rate, Row, Col,
+  Progress, Rate, Row, Col, Statistic, Divider,
 } from 'antd'
-import { EditOutlined, PlusOutlined, UserOutlined, ShopOutlined, EnvironmentOutlined, IdcardOutlined, TagOutlined } from '@ant-design/icons'
+import { EditOutlined, PlusOutlined, UserOutlined, ShopOutlined, EnvironmentOutlined, IdcardOutlined, TagOutlined, DollarOutlined, CheckCircleOutlined, WarningOutlined, HeartOutlined } from '@ant-design/icons'
+import { Radar as RadarChart } from '@ant-design/charts'
 import { useParams, useRouter } from 'next/navigation'
 import dayjs from 'dayjs'
 import AppLayout from '@/components/Layout/AppLayout'
 import { useSession } from 'next-auth/react'
 import { REGIONS, CUSTOMER_TYPES, CUSTOMER_TIERS, CUSTOMER_STATUSES, CUSTOMER_SOURCES, ONBOARDING_STATUSES } from '@/lib/constants'
+import { toastSuccess, handleApiError } from '@/lib/toast'
 
 const { Title, Text } = Typography
 
@@ -91,11 +93,11 @@ export default function CustomerDetailPage() {
         body: JSON.stringify(values),
       })
       if (!res.ok) throw new Error('Failed to update')
-      message.success('更新成功')
+      toastSuccess('更新成功')
       setEditModalOpen(false)
       fetchCustomer()
-    } catch {
-      message.error('更新失敗')
+    } catch (err) {
+      handleApiError(err, '更新失敗')
     } finally {
       setSaving(false)
     }
@@ -110,11 +112,11 @@ export default function CustomerDetailPage() {
         body: JSON.stringify(values),
       })
       if (!res.ok) throw new Error('Failed to update')
-      message.success('客戶資料已更新')
+      toastSuccess('客戶資料已更新')
       setProfileEditOpen(false)
       fetchCustomer()
-    } catch {
-      message.error('更新失敗')
+    } catch (err) {
+      handleApiError(err, '更新失敗')
     } finally {
       setSaving(false)
     }
@@ -149,11 +151,11 @@ export default function CustomerDetailPage() {
         body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error('Failed')
-      message.success('商家檔案已更新')
+      toastSuccess('商家檔案已更新')
       setMerchantModalOpen(false)
       fetchMerchantProfile()
-    } catch {
-      message.error('更新失敗')
+    } catch (err) {
+      handleApiError(err, '更新失敗')
     } finally {
       setSaving(false)
     }
@@ -172,12 +174,12 @@ export default function CustomerDetailPage() {
         }),
       })
       if (!res.ok) throw new Error('Failed')
-      message.success('溝通記錄已添加')
+      toastSuccess('溝通記錄已添加')
       setCommModalOpen(false)
       commForm.resetFields()
       fetchCustomer()
-    } catch {
-      message.error('添加失敗')
+    } catch (err) {
+      handleApiError(err, '添加失敗')
     } finally {
       setSaving(false)
     }
@@ -649,15 +651,111 @@ export default function CustomerDetailPage() {
                   {(customer.subscriptions?.length || 0) > 0 && <Tag style={{ marginLeft: 8 }}>{customer.subscriptions?.length}</Tag>}
                 </span>
               ),
-              children: (
-                <Table
-                  dataSource={customer.subscriptions || []}
-                  columns={subscriptionColumns}
-                  rowKey="id"
-                  pagination={false}
-                  locale={{ emptyText: <Empty description="暫無訂閱記錄" /> }}
-                />
+              children: (() => {
+                const subs = customer.subscriptions || []
+                const activeSubs = subs.filter((s: any) => s.status === 'ACTIVE')
+                const totalMrr = activeSubs.reduce((sum: number, s: any) => sum + (s.mrr || 0), 0)
+                const cancelledSubs = subs.filter((s: any) => s.status === 'CANCELLED')
+                const expiredSubs = subs.filter((s: any) => s.status === 'EXPIRED')
+                return (
+                  <div>
+                    {/* Subscription Summary */}
+                    <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                      <Col span={6}>
+                        <Card size="small">
+                          <Statistic title="活躍訂閱" value={activeSubs.length} prefix={<CheckCircleOutlined />} valueStyle={{ color: '#52c41a' }} />
+                        </Card>
+                      </Col>
+                      <Col span={6}>
+                        <Card size="small">
+                          <Statistic title="月度 MRR" value={totalMrr} prefix={<DollarOutlined />} precision={0} valueStyle={{ color: '#1890ff' }} />
+                        </Card>
+                      </Col>
+                      <Col span={6}>
+                        <Card size="small">
+                          <Statistic title="已取消" value={cancelledSubs.length} prefix={<WarningOutlined />} valueStyle={{ color: '#ff4d4f' }} />
+                        </Card>
+                      </Col>
+                      <Col span={6}>
+                        <Card size="small">
+                          <Statistic title="已過期" value={expiredSubs.length} valueStyle={{ color: '#faad14' }} />
+                        </Card>
+                      </Col>
+                    </Row>
+                    <Table
+                      dataSource={subs}
+                      columns={subscriptionColumns}
+                      rowKey="id"
+                      pagination={false}
+                      locale={{ emptyText: <Empty description="暫無訂閱記錄" /> }}
+                    />
+                  </div>
+                )
+              })(),
+            },
+            {
+              key: 'health',
+              label: (
+                <span>
+                  <HeartOutlined /> 健康度
+                </span>
               ),
+              children: (() => {
+                if (!hs) {
+                  return <Empty description="暫無健康度數據" />
+                }
+                const radarData = [
+                  { dimension: '互動度', score: hs.engagementScore || 0 },
+                  { dimension: '產品採用', score: hs.productAdoptionScore || 0 },
+                  { dimension: '客服健康', score: hs.supportHealthScore || 0 },
+                  { dimension: '訂閱健康', score: hs.subscriptionHealth || 0 },
+                ]
+                return (
+                  <div>
+                    <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                      <Col span={6}>
+                        <Card size="small">
+                          <Statistic
+                            title="綜合評分"
+                            value={hs.overallScore}
+                            suffix="/ 100"
+                            valueStyle={{ color: scoreColor(hs.overallScore) }}
+                          />
+                        </Card>
+                      </Col>
+                      <Col span={6}>
+                        <Card size="small">
+                          <Statistic title="流失風險" value={churnLabels[hs.churnRisk]} valueStyle={{ color: churnColors[hs.churnRisk] === 'green' ? '#52c41a' : churnColors[hs.churnRisk] === 'orange' ? '#faad14' : '#ff4d4f' }} />
+                        </Card>
+                      </Col>
+                      <Col span={6}>
+                        <Card size="small">
+                          <Statistic title="互動度" value={hs.engagementScore || 0} suffix="/ 100" valueStyle={{ color: scoreColor(hs.engagementScore || 0) }} />
+                        </Card>
+                      </Col>
+                      <Col span={6}>
+                        <Card size="small">
+                          <Statistic title="產品採用" value={hs.productAdoptionScore || 0} suffix="/ 100" valueStyle={{ color: scoreColor(hs.productAdoptionScore || 0) }} />
+                        </Card>
+                      </Col>
+                    </Row>
+                    <Card title="健康度維度雷達圖" size="small">
+                      <RadarChart
+                        data={radarData}
+                        xField="dimension"
+                        yField="score"
+                        height={300}
+                        meta={{ score: { min: 0, max: 100 } }}
+                        area={{ style: { fillOpacity: 0.25 } }}
+                        point={{ size: 4 }}
+                        color="#1890ff"
+                        xAxis={{ label: { style: { fontSize: 13 } } }}
+                        yAxis={{ label: { formatter: (v: number) => `${v}` } }}
+                      />
+                    </Card>
+                  </div>
+                )
+              })(),
             },
             {
               key: 'tickets',

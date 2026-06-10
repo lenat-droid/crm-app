@@ -5,12 +5,13 @@ import {
   REGIONS, CUSTOMER_TYPES, CUSTOMER_TIERS, CUSTOMER_STATUSES,
   CUSTOMER_SOURCES, ONBOARDING_STATUSES, INTEREST_LEVELS,
   PIPELINE_STATUSES, CONTACT_STATUSES, LEAD_STATUSES, LEAD_SOURCES,
-  PRODUCT_FIELDS,
+  PRODUCT_FIELDS, SUBSCRIPTION_PLANS, BILLING_TYPES, SUBSCRIPTION_STATUSES,
+  TICKET_PRIORITIES,
 } from '../constants'
 import {
   assertString, assertOptionalString, assertInt, assertOptionalInt,
   assertDateString, assertOptionalDateString, assertBoolean,
-  assertOneOf, assertOptionalOneOf, assertObject,
+  assertOneOf, assertOptionalOneOf, assertObject, assertNumber,
   ValidationError,
 } from './index'
 
@@ -201,5 +202,65 @@ export function validateUpdateUser(data: unknown) {
   if ('phone' in obj) result.phone = assertOptionalString(obj.phone, 'phone')
   if ('active' in obj) result.active = assertBoolean(obj.active, 'active')
   if ('password' in obj) result.password = assertString(obj.password, 'password')
+  return result
+}
+
+// ── Subscription ──
+
+export function validateCreateSubscription(data: unknown) {
+  const obj = assertObject(data, 'body')
+  return {
+    customerId: assertInt(obj.customerId, 'customerId'),
+    productId: assertInt(obj.productId, 'productId'),
+    plan: assertOptionalOneOf(obj.plan, SUBSCRIPTION_PLANS, 'plan'),
+    billingType: assertOptionalOneOf(obj.billingType, BILLING_TYPES, 'billingType'),
+    oneTimeAmount: obj.billingType === 'ONE_TIME' ? assertNumber(obj.oneTimeAmount, 'oneTimeAmount') : undefined,
+    status: assertOptionalOneOf(obj.status, SUBSCRIPTION_STATUSES, 'status'),
+    mrr: assertNumber(obj.mrr, 'mrr'),
+    startDate: assertDateString(obj.startDate, 'startDate'),
+    endDate: assertOptionalDateString(obj.endDate, 'endDate'),
+    trialEndDate: assertOptionalDateString(obj.trialEndDate, 'trialEndDate'),
+    autoRenew: typeof obj.autoRenew === 'boolean' ? obj.autoRenew : undefined,
+    notes: assertOptionalString(obj.notes, 'notes'),
+  }
+}
+
+export function validateUpdateSubscription(data: unknown) {
+  const obj = assertObject(data, 'body')
+  const result: Record<string, unknown> = {}
+  if ('status' in obj) result.status = assertOneOf(obj.status, SUBSCRIPTION_STATUSES, 'status')
+  if ('mrr' in obj) result.mrr = assertNumber(obj.mrr, 'mrr')
+  if ('plan' in obj) result.plan = assertOneOf(obj.plan, SUBSCRIPTION_PLANS, 'plan')
+  if ('endDate' in obj) result.endDate = assertOptionalDateString(obj.endDate, 'endDate')
+  if ('autoRenew' in obj) result.autoRenew = assertBoolean(obj.autoRenew, 'autoRenew')
+  if ('notes' in obj) result.notes = assertOptionalString(obj.notes, 'notes')
+  return result
+}
+
+// ── Support Ticket ──
+
+export function validateCreateSupportTicket(data: unknown) {
+  const obj = assertObject(data, 'body')
+  return {
+    customerId: assertInt(obj.customerId, 'customerId'),
+    subject: assertString(obj.subject, 'subject'),
+    priority: assertOptionalOneOf(obj.priority, TICKET_PRIORITIES, 'priority'),
+    assignedToId: assertOptionalInt(obj.assignedToId, 'assignedToId'),
+  }
+}
+
+export function validateUpdateSupportTicket(data: unknown) {
+  const obj = assertObject(data, 'body')
+  const result: Record<string, unknown> = {}
+  if ('status' in obj) result.status = assertOneOf(obj.status, ['OPEN', 'PENDING', 'RESOLVED', 'CLOSED'] as const, 'status')
+  if ('priority' in obj) result.priority = assertOneOf(obj.priority, TICKET_PRIORITIES, 'priority')
+  if ('assignedToId' in obj) result.assignedToId = assertOptionalInt(obj.assignedToId, 'assignedToId')
+  if ('subject' in obj) result.subject = assertString(obj.subject, 'subject')
+  if ('description' in obj) result.description = assertOptionalString(obj.description, 'description')
+  if ('csatScore' in obj) {
+    const score = assertNumber(obj.csatScore, 'csatScore')
+    if (score < 1 || score > 5) throw new ValidationError('csatScore: must be between 1 and 5')
+    result.csatScore = score
+  }
   return result
 }

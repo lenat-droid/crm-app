@@ -4,3 +4,4 @@ node_modules/
 .next/
 *.db
 .DS_Store
+tsconfig.tsbuildinfo

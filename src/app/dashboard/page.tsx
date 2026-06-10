@@ -8,6 +8,7 @@ import {
   TeamOutlined, RiseOutlined, UserAddOutlined, CheckCircleOutlined,
   DollarOutlined, WarningOutlined, HeartOutlined,
 } from '@ant-design/icons'
+import { Line, Pie } from '@ant-design/charts'
 import AppLayout from '@/components/Layout/AppLayout'
 
 const { Title, Text } = Typography
@@ -33,6 +34,7 @@ export default function DashboardPage() {
     leadsByStatus = {}, activeSubscriptions, totalMrr,
     churnRiskDistribution = {}, avgHealthScore,
     customersByTier = [], topRegions = [], pipelineByStatus = {},
+    mrrTrend = [], healthDistribution = {},
   } = dashboard
 
   const scoreColor = (score: number) => score >= 70 ? '#52c41a' : score >= 40 ? '#faad14' : '#ff4d4f'
@@ -179,6 +181,64 @@ export default function DashboardPage() {
               pagination={false}
               size="small"
             />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* MRR Trend + Health Pie Chart */}
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24} lg={14}>
+          <Card title="月度 MRR 趨勢" size="small" loading={loading}>
+            {mrrTrend.length > 0 ? (
+              <Line
+                data={mrrTrend}
+                xField="month"
+                yField="mrr"
+                height={260}
+                point={{ size: 3 }}
+                color="#1890ff"
+                yAxis={{ label: { formatter: (v: number) => `$${v.toLocaleString()}` } }}
+                tooltip={{ formatter: (datum: any) => ({ name: 'MRR', value: `$${datum.mrr.toLocaleString()}` }) }}
+              />
+            ) : (
+              <div style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
+                暂无 MRR 数据
+              </div>
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} lg={10}>
+          <Card title="健康度分布" size="small" loading={loading}>
+            {(healthDistribution.healthy || healthDistribution.attention || healthDistribution.atRisk) ? (
+              <Pie
+                data={[
+                  { type: '健康', value: healthDistribution.healthy || 0 },
+                  { type: '需關注', value: healthDistribution.attention || 0 },
+                  { type: '高風險', value: healthDistribution.atRisk || 0 },
+                ]}
+                angleField="value"
+                colorField="type"
+                height={260}
+                radius={0.85}
+                innerRadius={0.55}
+                color={['#52c41a', '#faad14', '#ff4d4f']}
+                label={{
+                  type: 'inner',
+                  offset: '-30%',
+                  content: '{percentage}',
+                  style: { fontSize: 14, textAlign: 'center' },
+                }}
+                legend={{ position: 'bottom' }}
+                statistic={{
+                  title: { style: { fontSize: '14px' }, content: '客戶健康度' },
+                  content: { style: { fontSize: '24px', fontWeight: 'bold' }, content: `${totalCustomers || 0}` },
+                }}
+              />
+            ) : (
+              <div style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
+                暂无健康度数据
+              </div>
+            )}
           </Card>
         </Col>
       </Row>
