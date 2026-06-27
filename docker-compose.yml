@@ -25,7 +25,7 @@ services:
       - db
     restart: always
     command: >
-      sh -c "npx prisma migrate deploy && npx prisma db seed && node server.js"
+      sh -c "npx prisma db push && npx prisma db seed && node server.js"
 
 volumes:
   pgdata:
