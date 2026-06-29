@@ -7,6 +7,36 @@ import fs from 'fs'
 import path from 'path'
 import { excelCheckToInterest } from '@/lib/utils'
 
+/** Parse Chinese date strings like "2026年1月22日" or Excel serial numbers */
+function parseDate(val: any): Date | null {
+  if (!val) return null
+  // Try JavaScript Date parsing first
+  const d = new Date(val)
+  if (!isNaN(d.getTime())) return d
+
+  // Try Excel serial date number
+  if (typeof val === 'number') {
+    const parsed = XLSX.SSF.parse_date_code(val)
+    if (parsed) return new Date(parsed.y, parsed.m - 1, parsed.d)
+    return null
+  }
+
+  // Try Chinese date format: "2026年1月22日"
+  const str = String(val).trim()
+  const match = str.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/)
+  if (match) {
+    return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]))
+  }
+
+  // Try "YYYY-MM-DD" or "YYYY/MM/DD"
+  const match2 = str.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+  if (match2) {
+    return new Date(parseInt(match2[1]), parseInt(match2[2]) - 1, parseInt(match2[3]))
+  }
+
+  return null
+}
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role !== 'ADMIN') {
@@ -24,22 +54,32 @@ export async function POST(req: NextRequest) {
     const workbook = XLSX.readFile(filePath)
     const result = {
       customersImported: 0,
+      customersSkipped: 0,
+      customersErrors: [] as string[],
       pipelinesImported: 0,
+      pipelinesSkipped: 0,
+      pipelinesErrors: [] as string[],
       communicationsImported: 0,
       visitsImported: 0,
       visitLogsImported: 0,
       leadsImported: 0,
     }
 
-    // Sheet 1: CRM客户明細
+    // ── Sheet 1: CRM客户明細 ──
     const customerSheet = workbook.Sheets['CRM客户明細']
     if (customerSheet) {
       const rows = XLSX.utils.sheet_to_json(customerSheet, { defval: '' }) as any[]
 
       for (const row of rows) {
+        const name = String(row['商家名稱'] || '').trim()
+        if (!name) {
+          result.customersSkipped++
+          continue
+        }
+
         const data: any = {
           sapId: row['SAP ID'] || null,
-          name: String(row['商家名稱'] || '').trim(),
+          name,
           city: row['城市'] || null,
           region: row['业务区域划分'] || null,
           address: row['地址'] || null,
@@ -64,41 +104,37 @@ export async function POST(req: NextRequest) {
           omeStatus: excelCheckToInterest(row['OME']),
           smartRobotStatus: excelCheckToInterest(row['智能機器人']),
           contactStatus: row['Proton接觸状态'] || null,
-          // Look up follower by name
-          follower: row['跟进人'] ? { connect: undefined } : undefined,
         }
 
-        // Try to find follower
-        if (row['跟进人']) {
-          const follower = await prisma.user.findFirst({
-            where: { name: { contains: row['跟进人'] as string } },
-          })
-          if (follower) {
-            data.follower = { connect: { id: follower.id } }
-            delete data.followerId
-          } else {
-            delete data.follower
+        // Look up follower by name
+        const followerName = row['跟进人']
+        if (followerName && String(followerName).trim()) {
+          try {
+            const follower = await prisma.user.findFirst({
+              where: { name: { contains: String(followerName).trim() } },
+            })
+            if (follower) {
+              data.follower = { connect: { id: follower.id } }
+            }
+          } catch {
+            // Silently skip follower lookup errors
           }
-        } else {
-          delete data.follower
         }
-
-        if (!data.name) continue
 
         try {
           await prisma.customer.upsert({
-            where: { id: 0 }, // Will always create new
+            where: { id: 0 },
             create: data,
             update: data,
           })
           result.customersImported++
-        } catch (err) {
-          console.error(`Failed to import customer ${data.name}:`, err)
+        } catch (err: any) {
+          result.customersErrors.push(`${name}: ${err.message}`)
         }
       }
     }
 
-    // Sheet 2: 10開10目標跟蹤
+    // ── Sheet 2: 10開10目標跟蹤 ──
     const pipelineSheet = workbook.Sheets['10開10目標跟蹤']
     if (pipelineSheet) {
       const rows = XLSX.utils.sheet_to_json(pipelineSheet, { defval: '' }) as any[]
@@ -107,75 +143,74 @@ export async function POST(req: NextRequest) {
         const merchantName = String(row['商家名稱Merchant'] || '').trim()
         if (!merchantName) continue
 
-        // Find customer
-        const customer = await prisma.customer.findFirst({
-          where: { name: { contains: merchantName } },
-        })
-        if (!customer) continue
-
-        // Find sales person
-        let salesPersonId = null
-        const personName = row['人员Person']
-        if (personName) {
-          const person = await prisma.user.findFirst({
-            where: { name: { contains: String(personName).split('(')[0].trim() } },
+        try {
+          // Find customer
+          const customer = await prisma.customer.findFirst({
+            where: { name: { contains: merchantName } },
           })
-          if (person) salesPersonId = person.id
-        }
-
-        // Create/update pipeline
-        const pipeline = await prisma.pipeline.upsert({
-          where: { customerId: customer.id },
-          create: {
-            customerId: customer.id,
-            salesPersonId,
-            status: row['當前狀態'] || '已建联',
-            smt: row['SMT'] || null,
-            psWebsite: row['PS官網'] || null,
-            aiCam: row['AI Cam'] || null,
-            agencyManaged: row['代運營'] || null,
-            lastContactDate: row['最新聯絡日期'] ? new Date(row['最新聯絡日期']) : null,
-            notes: row['備注'] || null,
-          },
-          update: {
-            salesPersonId,
-            status: row['當前狀態'] || undefined,
-            lastContactDate: row['最新聯絡日期'] ? new Date(row['最新聯絡日期']) : undefined,
-            notes: row['備注'] || undefined,
-          },
-        })
-        result.pipelinesImported++
-
-        // Import communications (Contact 1-6)
-        for (let i = 1; i <= 6; i++) {
-          const contactDate = row[`Contact ${i}`]
-          const record = row[`Communication Record ${i}`]
-          if (contactDate && record) {
-            let parsedDate: Date
-            try {
-              parsedDate = new Date(contactDate)
-              if (isNaN(parsedDate.getTime())) {
-                // Try Excel serial date
-                if (typeof contactDate === 'number') {
-                  parsedDate = XLSX.SSF.parse_date_code(contactDate) as any
-                } else {
-                  continue
-                }
-              }
-            } catch {
-              continue
-            }
-
-            await prisma.communication.create({
-              data: {
-                pipelineId: pipeline.id,
-                contactDate: parsedDate,
-                record: String(record),
-                contactOrder: i,
-              },
-            })
-            result.communicationsImported++
+          if (!customer) {
+            result.pipelinesSkipped++
+            continue
           }
+
+          // Find sales person
+          let salesPersonId: number | null = null
+          const personName = row['人员Person']
+          if (personName) {
+            const searchName = String(personName).split('(')[0].trim()
+            const person = await prisma.user.findFirst({
+              where: { name: { contains: searchName } },
+            })
+            if (person) salesPersonId = person.id
+          }
+
+          // Parse the contact date
+          const contactDate = parseDate(row['最新聯絡日期'])
+
+          // Create/update pipeline
+          const pipeline = await prisma.pipeline.upsert({
+            where: { customerId: customer.id },
+            create: {
+              customerId: customer.id,
+              salesPersonId,
+              status: row['當前狀態'] || '已建联',
+              smt: row['SMT'] || null,
+              psWebsite: row['PS官網'] || null,
+              aiCam: row['AI Cam'] || null,
+              agencyManaged: row['代運營'] || null,
+              lastContactDate: contactDate,
+              notes: row['備注'] || null,
+            },
+            update: {
+              salesPersonId,
+              status: row['當前狀態'] || undefined,
+              lastContactDate: contactDate || undefined,
+              notes: row['備注'] || undefined,
+            },
+          })
+          result.pipelinesImported++
+
+          // Import communications (Contact 1-6)
+          for (let i = 1; i <= 6; i++) {
+            const contactDateStr = row[`Contact ${i}`]
+            const record = row[`Communication Record ${i}`]
+            if (contactDateStr && record) {
+              const commDate = parseDate(contactDateStr)
+              if (commDate) {
+                await prisma.communication.create({
+                  data: {
+                    pipelineId: pipeline.id,
+                    contactDate: commDate,
+                    record: String(record),
+                    contactOrder: i,
+                  },
+                })
+                result.communicationsImported++
+              }
+            }
+          }
+        } catch (err: any) {
+          result.pipelinesErrors.push(`${merchantName}: ${err.message}`)
         }
       }
     }
