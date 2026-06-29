@@ -45,7 +45,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const { fileUrl } = await req.json()
-    const filePath = path.join(process.cwd(), 'public', fileUrl)
+    // Strip leading slash — path.join treats "/uploads" as absolute, dropping the prefix
+    const relativePath = fileUrl.startsWith('/') ? fileUrl.slice(1) : fileUrl
+    const filePath = path.join(process.cwd(), 'public', relativePath)
 
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
