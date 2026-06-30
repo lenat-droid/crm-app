@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
+import os from 'os'
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -19,15 +20,27 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads')
-    await mkdir(uploadDir, { recursive: true })
-
     const filename = `${Date.now()}-${file.name}`
-    const filepath = path.join(uploadDir, filename)
-    await writeFile(filepath, buffer)
 
-    return NextResponse.json({ url: `/uploads/${filename}` })
-  } catch {
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
+    // Try public/uploads first, fall back to OS tmpdir (Docker permission fix)
+    const primaryDir = path.join(process.cwd(), 'public', 'uploads')
+    let uploadDir = primaryDir
+    let filepath = path.join(uploadDir, filename)
+
+    try {
+      await mkdir(uploadDir, { recursive: true })
+      await writeFile(filepath, buffer)
+    } catch {
+      uploadDir = path.join(os.tmpdir(), 'crm-uploads')
+      filepath = path.join(uploadDir, filename)
+      await mkdir(uploadDir, { recursive: true })
+      await writeFile(filepath, buffer)
+    }
+
+    // Return the absolute path so the import API can read it directly
+    return NextResponse.json({ url: filepath })
+  } catch (err: any) {
+    console.error('[Upload]', err.message)
+    return NextResponse.json({ error: `Upload failed: ${err.message}` }, { status: 500 })
   }
 }

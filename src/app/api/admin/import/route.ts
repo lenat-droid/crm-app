@@ -45,12 +45,19 @@ export async function POST(req: NextRequest) {
 
   try {
     const { fileUrl } = await req.json()
-    // Strip leading slash — path.join treats "/uploads" as absolute, dropping the prefix
-    const relativePath = fileUrl.startsWith('/') ? fileUrl.slice(1) : fileUrl
-    const filePath = path.join(process.cwd(), 'public', relativePath)
+
+    // For absolute paths (Docker tmpdir fallback) use directly.
+    // For relative URLs like "/uploads/xxx" → resolve under public/
+    let filePath: string
+    if (path.isAbsolute(fileUrl)) {
+      filePath = fileUrl
+    } else {
+      const relativePath = fileUrl.startsWith('/') ? fileUrl.slice(1) : fileUrl
+      filePath = path.join(process.cwd(), 'public', relativePath)
+    }
 
     if (!fs.existsSync(filePath)) {
-      return NextResponse.json({ error: 'File not found' }, { status: 404 })
+      return NextResponse.json({ error: `File not found: ${filePath}` }, { status: 404 })
     }
 
     const workbook = XLSX.readFile(filePath)

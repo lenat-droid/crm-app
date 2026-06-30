@@ -28,13 +28,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-cert
 RUN groupadd --system --gid 1001 nodejs
 RUN useradd --system --uid 1001 nextjs
 
-COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 # Copy full node_modules so prisma CLI + tsx are available for db push and seed
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+
+# Ensure uploads directory exists and is writable by nextjs
+RUN mkdir -p /app/public/uploads
 
 USER nextjs
 
