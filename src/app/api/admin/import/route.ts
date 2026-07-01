@@ -46,9 +46,10 @@ export async function POST(req: NextRequest) {
   try {
     const { fileUrl } = await req.json()
 
-    // Resolve file path
+    // Resolve file path — try as-is first, then under public/
+    // Upload API may return absolute path (/tmp/crm-uploads/xxx) or relative URL (/uploads/xxx)
     let filePath: string
-    if (path.isAbsolute(fileUrl)) {
+    if (fs.existsSync(fileUrl)) {
       filePath = fileUrl
     } else {
       const relativePath = fileUrl.startsWith('/') ? fileUrl.slice(1) : fileUrl
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({
-        error: `文件不存在: ${filePath}`,
+        error: `文件不存在: ${fileUrl}`,
         tip: '上传可能失败了。请重新上传文件。',
       }, { status: 404 })
     }
