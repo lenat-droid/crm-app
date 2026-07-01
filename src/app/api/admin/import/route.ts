@@ -3,9 +3,6 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import * as XLSX from 'xlsx'
-import fs from 'fs'
-import path from 'path'
-import os from 'os'
 import { excelCheckToInterest } from '@/lib/utils'
 
 /** Parse Chinese date strings like "2026年1月22日" or Excel serial numbers */
@@ -44,33 +41,34 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { fileUrl } = await req.json()
+    // Accept file directly as multipart form data (no file path needed)
+    const contentType = req.headers.get('content-type') || ''
 
-    // Resolve file path — try as-is first, then under public/
-    // Upload API may return absolute path (/tmp/crm-uploads/xxx) or relative URL (/uploads/xxx)
-    let filePath: string
-    if (fs.existsSync(fileUrl)) {
-      filePath = fileUrl
-    } else {
-      const relativePath = fileUrl.startsWith('/') ? fileUrl.slice(1) : fileUrl
-      filePath = path.join(process.cwd(), 'public', relativePath)
-    }
-
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json({
-        error: `文件不存在: ${fileUrl}`,
-        tip: '上传可能失败了。请重新上传文件。',
-      }, { status: 404 })
-    }
-
-    // Try reading the workbook
     let workbook: XLSX.WorkBook
-    try {
-      workbook = XLSX.readFile(filePath)
-    } catch (err: any) {
+
+    if (contentType.includes('multipart/form-data')) {
+      // Direct file upload — read from memory
+      const formData = await req.formData()
+      const file = formData.get('file') as File | null
+      if (!file) {
+        return NextResponse.json({ error: '未找到文件' }, { status: 400 })
+      }
+      const arrayBuffer = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      try {
+        workbook = XLSX.read(buffer, { type: 'buffer' })
+      } catch (err: any) {
+        return NextResponse.json({
+          error: `无法读取 Excel 文件: ${err.message}`,
+          tip: '文件可能损坏或格式不支持，请使用 .xlsx 格式。',
+        }, { status: 400 })
+      }
+    } else {
+      // Legacy: JSON body with fileUrl (for backwards compatibility)
+      const { fileUrl } = await req.json()
       return NextResponse.json({
-        error: `无法读取 Excel 文件: ${err.message}`,
-        tip: '文件可能损坏或格式不支持，请使用 .xlsx 格式。',
+        error: '请直接上传文件，不再支持通过路径导入。',
+        tip: '请重新选择文件上传。',
       }, { status: 400 })
     }
 
@@ -262,9 +260,6 @@ export async function POST(req: NextRequest) {
     } else {
       diagnostics.push(`未找到 Sheet「${PIPELINE_SHEET}」，跳过 Pipeline 导入`)
     }
-
-    // Clean up temp file
-    try { fs.unlinkSync(filePath) } catch {}
 
     return NextResponse.json({ ...result, diagnostics })
   } catch (err: any) {

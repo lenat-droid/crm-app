@@ -16,24 +16,14 @@ export default function AdminImportPage() {
     setUploading(true)
     setResult(null)
 
-    const formData = new FormData()
-    formData.append('file', file)
-
     try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || '上传失败')
-      }
+      // Send file directly to import API — no intermediate save step
+      const formData = new FormData()
+      formData.append('file', file)
 
       const importRes = await fetch('/api/admin/import', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileUrl: data.url }),
+        body: formData,
       })
       const importData = await importRes.json()
       setResult(importData)
