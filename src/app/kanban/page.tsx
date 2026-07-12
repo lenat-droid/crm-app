@@ -36,6 +36,7 @@ export default function KanbanPage() {
   const [subForm] = Form.useForm()
   const [subCustomer, setSubCustomer] = useState<{ id: number; name: string } | null>(null)
   const [products, setProducts] = useState<any[]>([])
+  const [userOptions, setUserOptions] = useState<{ id: number; name: string }[]>([])
 
   const fetchProducts = async () => {
     try {
@@ -63,6 +64,7 @@ export default function KanbanPage() {
   }, [showClosed])
 
   useEffect(() => { fetchProducts() }, [])
+  useEffect(() => { fetch('/api/users/list').then(r => r.json()).then(setUserOptions).catch(() => {}) }, [])
 
   const handleStatusChange = async (pipelineId: number, newStatus: string) => {
     try {
@@ -76,6 +78,21 @@ export default function KanbanPage() {
       fetchPipelines()
     } catch {
       message.error('更新失敗')
+    }
+  }
+
+  const handleSalesPersonChange = async (pipelineId: number, newSalesPersonId: number | null) => {
+    try {
+      const res = await fetch(`/api/pipelines`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: pipelineId, salesPersonId: newSalesPersonId }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      message.success('負責人已變更')
+      fetchPipelines()
+    } catch {
+      message.error('變更失敗')
     }
   }
 
@@ -327,6 +344,22 @@ export default function KanbanPage() {
                           onClick={(e) => e.stopPropagation()}
                           onChange={(val) => handleStatusChange(p.id, val)}
                           style={{ width: 120 }}
+                        />
+                      </div>
+
+                      {/* Sales person reassignment */}
+                      <div style={{ marginTop: 6 }}>
+                        <Select
+                          size="small"
+                          value={p.salesPersonId ?? undefined}
+                          placeholder="變更負責人"
+                          allowClear
+                          options={userOptions.map(u => ({ label: u.name, value: u.id }))}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(val) => handleSalesPersonChange(p.id, val)}
+                          style={{ width: 120 }}
+                          showSearch
+                          optionFilterProp="label"
                         />
                       </div>
 

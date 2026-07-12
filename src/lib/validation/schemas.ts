@@ -122,7 +122,12 @@ export function validateUpdatePipeline(data: unknown) {
     result.closeReason = assertOneOf(obj.closeReason, ['WON', 'LOST'] as const, 'closeReason')
   }
 
-  return result as { id: number; status?: string; active?: boolean; closedAt?: string; closeReason?: string }
+  // Support reassigning pipeline owner
+  if ('salesPersonId' in obj) {
+    result.salesPersonId = assertOptionalInt(obj.salesPersonId, 'salesPersonId')
+  }
+
+  return result as { id: number; status?: string; active?: boolean; closedAt?: string; closeReason?: string; salesPersonId?: number }
 }
 
 // ── Lead ──

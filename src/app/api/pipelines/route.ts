@@ -123,7 +123,17 @@ export async function PATCH(req: NextRequest) {
     throw err
   }
 
-  const { id, status, active, closedAt, closeReason: explicitCloseReason } = validated
+  const { id, status, active, closedAt, closeReason: explicitCloseReason, salesPersonId } = validated
+
+  // ── Case 0: Reassign pipeline owner (can combine with status update) ──
+  if (salesPersonId !== undefined && active !== false && !status) {
+    const updated = await prisma.pipeline.update({
+      where: { id },
+      data: { salesPersonId: salesPersonId || null },
+      include: { customer: { select: { id: true, name: true } } },
+    })
+    return NextResponse.json(updated)
+  }
 
   // ── Case 1: 關閉 Pipeline（active=false）──
   if (active === false) {

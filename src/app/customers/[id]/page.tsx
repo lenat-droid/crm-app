@@ -66,6 +66,7 @@ export default function CustomerDetailPage() {
   const [merchantModalOpen, setMerchantModalOpen] = useState(false)
   const [profileLoading, setProfileLoading] = useState(false)
   const [merchantProfile, setMerchantProfile] = useState<any>(null)
+  const [userOptions, setUserOptions] = useState<{ id: number; name: string }[]>([])
 
   const fetchCustomer = async () => {
     try {
@@ -82,6 +83,7 @@ export default function CustomerDetailPage() {
   useEffect(() => {
     fetchCustomer()
     fetchMerchantProfile()
+    fetch('/api/users/list').then(r => r.json()).then(setUserOptions).catch(() => {})
   }, [params.id])
 
   const handleSaveProducts = async (values: any) => {
@@ -362,6 +364,7 @@ export default function CustomerDetailPage() {
                   source: customer.source,
                   onboardingStatus: customer.onboardingStatus,
                   contactStatus: customer.contactStatus,
+                  followerId: customer.followerId,
                 })
                 setProfileEditOpen(true)
               }}>
@@ -948,6 +951,15 @@ export default function CustomerDetailPage() {
               </Form.Item>
             </Col>
           </Row>
+          <Form.Item name="followerId" label="跟進人">
+            <Select
+              allowClear
+              showSearch
+              placeholder="選擇跟進人"
+              optionFilterProp="label"
+              options={userOptions.map(u => ({ label: u.name, value: u.id }))}
+            />
+          </Form.Item>
         </Form>
       </Modal>
 
