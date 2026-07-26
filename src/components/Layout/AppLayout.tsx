@@ -137,7 +137,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         collapsible
         collapsed={collapsed}
         theme="light"
+        width={240}
         style={{
+          position: 'fixed',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          height: '100vh',
+          zIndex: 100,
           borderRight: '1px solid #f0f0f0',
           boxShadow: collapsed ? undefined : '2px 0 8px rgba(0,0,0,0.06)',
         }}
@@ -154,25 +161,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {collapsed ? 'CRM' : 'CRM 系統'}
             </Text>
           </div>
-          <Menu
-            mode="inline"
-            selectedKeys={[getSelectedKey()]}
-            items={items}
-            onClick={({ key }) => router.push(key)}
-            style={{ border: 'none', flex: 1 }}
-          />
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            <Menu
+              mode="inline"
+              selectedKeys={[getSelectedKey()]}
+              items={items}
+              onClick={({ key }) => router.push(key)}
+              style={{ border: 'none' }}
+            />
+          </div>
           <div style={{
             borderTop: '1px solid #f0f0f0',
             padding: collapsed ? '8px 0' : '8px 16px',
             textAlign: 'center',
+            flexShrink: 0,
           }}>
             <Text style={{ fontSize: 11, color: '#bbb' }}>
-              {collapsed ? 'v1.0.0' : 'Proton CRM v1.0.0'}
+              {collapsed ? 'v1.0.1' : 'Proton CRM v1.0.1'}
             </Text>
           </div>
         </div>
       </Sider>
-      <Layout>
+      <Layout style={{ marginLeft: collapsed ? 80 : 240 }}>
         <Header style={{
           background: '#fff',
           padding: '0 24px',
@@ -181,6 +191,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           justifyContent: 'space-between',
           borderBottom: '1px solid #f0f0f0',
           height: 64,
+          position: 'sticky',
+          top: 0,
+          zIndex: 99,
         }}>
           <Button
             type="text"
@@ -202,7 +215,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </Dropdown>
         </Header>
-        <Content style={{ margin: 24 }}>
+        <Content style={{ margin: 24, background: '#fff', borderRadius: 8, padding: 24 }}>
           {children}
         </Content>
       </Layout>

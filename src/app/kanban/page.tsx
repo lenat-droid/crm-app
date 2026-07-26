@@ -5,11 +5,11 @@ import {
   Card, Typography, Tag, message, Modal, Form, Input, InputNumber, Select, DatePicker,
   Empty, Spin, Button, Space, Popconfirm, Row, Col, Statistic,
 } from 'antd'
+import dayjs from 'dayjs'
 import {
   CheckCircleOutlined, CloseCircleOutlined,
   HistoryOutlined, ReloadOutlined,
 } from '@ant-design/icons'
-import dayjs from 'dayjs'
 import AppLayout from '@/components/Layout/AppLayout'
 
 const { Title, Text } = Typography
@@ -157,7 +157,7 @@ export default function KanbanPage() {
         productId: values.productId,
         plan: values.plan || 'MONTHLY',
         mrr: values.mrr || 0,
-        startDate: values.startDate?.toISOString(),
+        startDate: values.startDate?.toISOString() || dayjs().toISOString(),
         endDate: values.endDate?.toISOString(),
         autoRenew: values.autoRenew !== false,
         notes: values.notes || null,
@@ -512,8 +512,8 @@ export default function KanbanPage() {
           <Form.Item name="mrr" label="MRR (USD)" rules={[{ required: true, message: '請輸入月經常性收入' }]}>
             <InputNumber min={0} step={10} style={{ width: '100%' }} placeholder="e.g. 499" />
           </Form.Item>
-          <Form.Item name="startDate" label="開始日期">
-            <DatePicker style={{ width: '100%' }} />
+          <Form.Item name="startDate" label="開始日期" rules={[{ required: true, message: '請選擇開始日期' }]}>
+            <DatePicker defaultValue={dayjs()} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="endDate" label="結束日期">
             <DatePicker style={{ width: '100%' }} />
