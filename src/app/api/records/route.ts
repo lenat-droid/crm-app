@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getDataScope } from '@/lib/auth-helpers'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -14,10 +13,8 @@ export async function GET(req: NextRequest) {
   const typeFilter = searchParams.get('type') // lead | checkin | visit | all
   const customerId = searchParams.get('customerId')
 
-  // Data scoping
-  const scope = getDataScope(session)
-
   // ── Build scoped WHERE clauses ──
+  // SALES sees own records; SALES_MGR sees records created by users in their region
   const leadWhere: any = {}
   const commWhere: any = {}
   const visitWhere: any = {}
@@ -26,6 +23,11 @@ export async function GET(req: NextRequest) {
     leadWhere.registeredById = session.user.id
     commWhere.createdById = session.user.id
     visitWhere.visitedById = session.user.id
+  } else if (session.user.role === 'SALES_MGR' && session.user.region) {
+    const region = session.user.region
+    leadWhere.registeredBy = { region }
+    commWhere.createdBy = { region }
+    visitWhere.visitedBy = { region }
   }
 
   if (customerId) {
@@ -40,7 +42,12 @@ export async function GET(req: NextRequest) {
   const fetchCheckins = !typeFilter || typeFilter === 'checkin' || typeFilter === 'all'
   const fetchVisits = !typeFilter || typeFilter === 'visit' || typeFilter === 'all'
 
-  // ── Fetch all three types in parallel ──
+  // ── Fetch the three types in parallel ──
+  // Each query is bounded to the first `page * pageSize` rows (sorted by
+  // createdAt desc), which is exactly enough to slice the merged page —
+  // avoids loading entire tables into memory.
+  const fetchLimit = page * pageSize
+
   const [leads, communications, visits, leadTotal, commTotal, visitTotal] = await Promise.all([
     fetchLeads
       ? prisma.lead.findMany({
@@ -50,6 +57,7 @@ export async function GET(req: NextRequest) {
             registeredBy: { select: { id: true, name: true } },
           },
           orderBy: { createdAt: 'desc' },
+          take: fetchLimit,
         })
       : Promise.resolve([]),
 
@@ -63,6 +71,7 @@ export async function GET(req: NextRequest) {
             createdBy: { select: { id: true, name: true } },
           },
           orderBy: { createdAt: 'desc' },
+          take: fetchLimit,
         })
       : Promise.resolve([]),
 
@@ -74,6 +83,7 @@ export async function GET(req: NextRequest) {
             visitedBy: { select: { id: true, name: true } },
           },
           orderBy: { createdAt: 'desc' },
+          take: fetchLimit,
         })
       : Promise.resolve([]),
 
@@ -134,7 +144,9 @@ export async function GET(req: NextRequest) {
   normalized.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   // ── Manual pagination after sorting ──
-  const total = normalized.length
+  // Total comes from the count queries (the fetched lists are capped)
+  const total =
+    (fetchLeads ? leadTotal : 0) + (fetchCheckins ? commTotal : 0) + (fetchVisits ? visitTotal : 0)
   const start = (page - 1) * pageSize
   const paged = normalized.slice(start, start + pageSize)
 

@@ -38,6 +38,18 @@ export async function GET() {
     healthScoreWhere.customer = { region: scope.region }
   }
 
+  // Build lead / visit filters: SALES sees own records,
+  // SALES_MGR sees records created by users in their region
+  const leadWhere: any = {}
+  const visitWhere: any = {}
+  if (scope.followerId) {
+    leadWhere.registeredById = scope.followerId as number
+    visitWhere.visitedById = scope.followerId as number
+  } else if (scope.region) {
+    leadWhere.registeredBy = { region: scope.region as string }
+    visitWhere.visitedBy = { region: scope.region as string }
+  }
+
   // Run all queries in parallel
   const [
     totalCustomers,
@@ -58,8 +70,8 @@ export async function GET() {
     // Basic counts
     prisma.customer.count({ where: customerWhere }),
     prisma.pipeline.count({ where: pipelineWhere }),
-    prisma.lead.count({ where: scope.followerId ? { registeredById: scope.followerId as number } : {} }),
-    prisma.visit.count({ where: scope.followerId ? { visitedById: scope.followerId as number } : {} }),
+    prisma.lead.count({ where: leadWhere }),
+    prisma.visit.count({ where: visitWhere }),
 
     // Pipeline: active count
     prisma.pipeline.count({ where: { ...pipelineWhere, active: true } }),
@@ -68,7 +80,7 @@ export async function GET() {
     prisma.lead.groupBy({
       by: ['status'],
       _count: true,
-      where: scope.followerId ? { registeredById: scope.followerId as number } : {},
+      where: leadWhere,
     }),
 
     // Subscriptions: active count
