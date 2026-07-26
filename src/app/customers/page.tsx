@@ -131,7 +131,6 @@ export default function CustomersPage() {
       width: 100,
       render: (city: string) => highlightText(city),
     },
-    { title: '城市', dataIndex: 'city', key: 'city', width: 100 },
     { title: '區域', dataIndex: 'region', key: 'region', width: 130 },
     { title: '類別', dataIndex: 'type', key: 'type', width: 80 },
     { title: '店鋪類型', dataIndex: 'storeType', key: 'storeType', width: 80 },
