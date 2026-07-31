@@ -1,8 +1,8 @@
 # CLAUDE.md — CRM App 项目指南
 
 > 面向美国中/亚洲餐厅的餐饮科技 CRM
-> 技术栈: Next.js 14 + Prisma (SQLite) + Ant Design 5 + NextAuth
-> 当前版本: **v1.0.1**
+> 技术栈: Next.js 14 + Prisma (PostgreSQL) + Ant Design 5 + NextAuth
+> 当前版本: **v1.1.0**
 
 ---
 
@@ -115,6 +115,40 @@ npm run db:studio    # Prisma Studio (数据库可视化)
 - 客户列表页和客户详情页已切换到统一 Toast
 
 ---
+
+## v1.0.2 变更记录 (2026-07-26) — 纯 Bug 修复，零 schema 变更
+
+- **权限越界修复**: SALES_MGR 在 dashboard 的线索数/拜访数、/api/records 时间线、数据导出中原先能看到全公司数据，现按 region 隔离
+- **导出真实下载**: 新增 `GET /api/exports/[id]/download` 按需重新生成 CSV（带 UTF-8 BOM），导出逻辑抽到 `src/lib/export-csv.ts`
+- **records 性能**: 三表查询加 take 上限（page*pageSize），total 用 count 求和，不再全表载入内存排序
+- **客户列表**: 删除重复的"城市"列
+
+## v1.1.0 变更记录 (2026-07-26) — 跟进闭环 + Agent 对接地基
+
+> 对应「客户跟进机制落地方案」的 P0 数据地基 + P1 规则推送。schema 全部为增量字段，生产 `prisma db push` 自动加列，不动存量数据。
+
+### Schema 增量
+- `Pipeline.nextFollowUpAt` / `nextAction`: 下次跟进日期与动作 — 跟进机制的发动机
+- `Pipeline.closeReason`: WON/LOST 落库（此前算出但不落库，赢率无法回溯）
+- `Communication.source`: manual/agent — Agent 写入审计标记
+
+### 跟进规则引擎（确定性代码，不经过 Agent）
+- `src/lib/followups.ts`: 5 条规则 — 新客户24h未首联 / 有意向3天无回音 / 今日到期 / 静默30天 / 成交30天回访
+- 阈值走环境变量: `FOLLOWUP_NEW_LEAD_HOURS` / `FOLLOWUP_INTENT_DAYS` / `FOLLOWUP_SILENT_DAYS` / `FOLLOWUP_WON_CHECKIN_DAYS`
+
+### 内部 API（供云端 Agent / cron 调用）
+- `GET /api/followups/due`: 到期+超时清单，按负责人分组（session RBAC 或 `x-agent-token`）
+- `GET /api/customers/[id]/context`: 客户画像+阶段+产品意向+订阅+最近5条记录一次打包（给 Agent 生成话术）
+- `POST /api/customers/[id]/followups`: 写跟进记录+更新 lastContactDate/nextFollowUpAt；Agent token 写入 source=agent，能力上限=追加记录+改跟进时间，不能改阶段/删数/碰金额
+- `POST /api/cron/daily-digest`: 企微群日报（`CRON_SECRET` 保护），销售群清单+管理群汇总，未配 webhook 时 dry-run 返回消息内容
+- 环境变量: `AGENT_API_TOKEN`, `CRON_SECRET`, `WECOM_WEBHOOK_SALES`, `WECOM_WEBHOOK_MGMT`
+- cron 触发（宿主机 crontab）: `30 8 * * * curl -s -X POST "https://<host>/api/cron/daily-digest?secret=$CRON_SECRET"`
+
+### UI
+- 新增 `/today` 今日跟进工作台（移动优先）：到期/超期清单 + 就地"记一笔"（沟通内容+下次跟进日期必填）
+- AppLayout: 移动端(<768px)侧边栏改 Drawer；SALES_MGR 可见"数据导出"入口
+- 看板卡片: 显示下次跟进日期，超期红条/今日黄条高亮
+- 订阅管理: 取消/恢复订阅操作（`PATCH /api/subscriptions/[id]`，流失数据从此可统计）
 
 ## 待办 / 下一步
 

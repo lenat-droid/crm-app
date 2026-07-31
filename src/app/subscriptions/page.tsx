@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   Card, Typography, Table, Tag, Space, Button, Modal, Form,
-  Input, InputNumber, Select, DatePicker, message, Statistic, Row, Col,
+  Input, InputNumber, Select, DatePicker, message, Statistic, Row, Col, Popconfirm,
 } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -106,6 +106,24 @@ export default function SubscriptionsPage() {
     }
   }
 
+  const updateStatus = async (id: number, status: string) => {
+    try {
+      const res = await fetch(`/api/subscriptions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || '操作失敗')
+      }
+      message.success(status === 'CANCELLED' ? '訂閱已取消' : '訂閱已恢復')
+      fetchSubscriptions()
+    } catch (err: any) {
+      message.error(err.message || '操作失敗')
+    }
+  }
+
   const columns = [
     {
       title: '客戶',
@@ -172,6 +190,41 @@ export default function SubscriptionsPage() {
       key: 'salesPerson',
       width: 100,
       render: (v: string | null) => v || '-',
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 110,
+      render: (_: any, record: Subscription) => {
+        if (record.status === 'ACTIVE' || record.status === 'TRIALING') {
+          return (
+            <Popconfirm
+              title="取消訂閱"
+              description="確定取消這筆訂閱嗎？記錄會保留，狀態改為已取消。"
+              onConfirm={() => updateStatus(record.id, 'CANCELLED')}
+              okText="取消訂閱"
+              cancelText="再想想"
+              okButtonProps={{ danger: true }}
+            >
+              <Button size="small" danger>取消</Button>
+            </Popconfirm>
+          )
+        }
+        if (record.status === 'CANCELLED' || record.status === 'EXPIRED') {
+          return (
+            <Popconfirm
+              title="恢復訂閱"
+              description="將狀態改回啟用中（續約）？"
+              onConfirm={() => updateStatus(record.id, 'ACTIVE')}
+              okText="恢復"
+              cancelText="再想想"
+            >
+              <Button size="small">恢復</Button>
+            </Popconfirm>
+          )
+        }
+        return null
+      },
     },
   ]
 

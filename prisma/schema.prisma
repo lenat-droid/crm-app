@@ -159,6 +159,7 @@ model Pipeline {
   status        String   @default("已建联") // ⚠️ / 已建联 / 初步有意向 / 合作中
   active        Boolean  @default(true)     // false when pipeline is closed/archived
   closedAt      DateTime?
+  closeReason   String?  // WON | LOST, set when pipeline is closed
 
   smt           String?
   psWebsite     String?
@@ -166,6 +167,8 @@ model Pipeline {
   agencyManaged String?
 
   lastContactDate DateTime?
+  nextFollowUpAt  DateTime? // 下次跟进日期 — 跟进机制的发动机
+  nextAction      String?   // 下次跟进要做什么
   notes           String?
 
   createdAt DateTime @default(now())
@@ -181,6 +184,7 @@ model Communication {
   contactDate  DateTime
   record       String
   contactOrder Int
+  source       String   @default("manual") // manual | agent — agent 写入需审计
   createdById  Int?
   createdBy    User?    @relation(fields: [createdById], references: [id])
   createdAt    DateTime @default(now())

@@ -3,8 +3,9 @@
 import React, { useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
-import { Layout, Menu, Button, Avatar, Dropdown, Typography, Spin } from 'antd'
+import { Layout, Menu, Button, Avatar, Dropdown, Typography, Spin, Drawer, Grid } from 'antd'
 import {
+  CarryOutOutlined,
   DashboardOutlined,
   TeamOutlined,
   ProjectOutlined,
@@ -25,6 +26,13 @@ const { Header, Sider, Content } = Layout
 const { Text } = Typography
 
 const menuGroups = [
+  {
+    type: 'group' as const,
+    label: '工作台',
+    children: [
+      { key: '/today', icon: <CarryOutOutlined />, label: '今日跟进' },
+    ],
+  },
   {
     type: 'group' as const,
     label: '看板類',
@@ -70,9 +78,13 @@ const adminGroup = {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const { data: session, status } = useSession()
+  const screens = Grid.useBreakpoint()
+  // md 断点 (768px) 以下视为移动端：侧边栏改为抽屉
+  const isMobile = screens.md === false
 
   if (status === 'loading') {
     return (
@@ -88,14 +100,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   const isAdmin = session?.user?.role === 'ADMIN'
+  const isMgr = session?.user?.role === 'SALES_MGR'
+
+  // SALES_MGR has export permission on the API side — give them the entry too
+  const mgrGroup = {
+    type: 'group' as const,
+    label: '管理後台',
+    children: [{ key: '/exports', icon: <FileTextOutlined />, label: '数据导出' }],
+  }
 
   const items = [
     ...menuGroups,
-    ...(isAdmin ? [adminGroup] : []),
+    ...(isAdmin ? [adminGroup] : isMgr ? [mgrGroup] : []),
   ]
 
   const getSelectedKey = () => {
     if (pathname === '/') return '/dashboard'
+    if (pathname.startsWith('/today')) return '/today'
     if (pathname.startsWith('/quick-checkin')) return '/quick-checkin'
     if (pathname.startsWith('/product-stats')) return '/product-stats'
     if (pathname.startsWith('/customers')) return '/customers'
@@ -130,62 +151,83 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     },
   ]
 
+  const menuContent = (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{
+        height: 64,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderBottom: '1px solid #f0f0f0',
+        flexShrink: 0,
+      }}>
+        <Text strong style={{ fontSize: collapsed && !isMobile ? 16 : 18, color: '#1677ff' }}>
+          {collapsed && !isMobile ? 'CRM' : 'CRM 系統'}
+        </Text>
+      </div>
+      <div style={{ overflowY: 'auto', flex: 1 }}>
+        <Menu
+          mode="inline"
+          selectedKeys={[getSelectedKey()]}
+          items={items}
+          onClick={({ key }) => {
+            router.push(key)
+            setDrawerOpen(false)
+          }}
+          style={{ border: 'none' }}
+        />
+      </div>
+      <div style={{
+        borderTop: '1px solid #f0f0f0',
+        padding: collapsed && !isMobile ? '8px 0' : '8px 16px',
+        textAlign: 'center',
+        flexShrink: 0,
+      }}>
+        <Text style={{ fontSize: 11, color: '#bbb' }}>
+          {collapsed && !isMobile ? 'v1.1.0' : 'Proton CRM v1.1.0'}
+        </Text>
+      </div>
+    </div>
+  )
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        trigger={null}
-        collapsible
-        collapsed={collapsed}
-        theme="light"
-        width={240}
-        style={{
-          position: 'fixed',
-          top: 0,
-          bottom: 0,
-          left: 0,
-          height: '100vh',
-          zIndex: 100,
-          borderRight: '1px solid #f0f0f0',
-          boxShadow: collapsed ? undefined : '2px 0 8px rgba(0,0,0,0.06)',
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <div style={{
-            height: 64,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderBottom: '1px solid #f0f0f0',
-          }}>
-            <Text strong style={{ fontSize: collapsed ? 16 : 18, color: '#1677ff' }}>
-              {collapsed ? 'CRM' : 'CRM 系統'}
-            </Text>
-          </div>
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            <Menu
-              mode="inline"
-              selectedKeys={[getSelectedKey()]}
-              items={items}
-              onClick={({ key }) => router.push(key)}
-              style={{ border: 'none' }}
-            />
-          </div>
-          <div style={{
-            borderTop: '1px solid #f0f0f0',
-            padding: collapsed ? '8px 0' : '8px 16px',
-            textAlign: 'center',
-            flexShrink: 0,
-          }}>
-            <Text style={{ fontSize: 11, color: '#bbb' }}>
-              {collapsed ? 'v1.0.1' : 'Proton CRM v1.0.1'}
-            </Text>
-          </div>
-        </div>
-      </Sider>
-      <Layout style={{ marginLeft: collapsed ? 80 : 240 }}>
+      {isMobile ? (
+        <Drawer
+          placement="left"
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          width={240}
+          styles={{ body: { padding: 0 } }}
+          closable={false}
+        >
+          {menuContent}
+        </Drawer>
+      ) : (
+        <Sider
+          trigger={null}
+          collapsible
+          collapsed={collapsed}
+          theme="light"
+          width={240}
+          style={{
+            position: 'fixed',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            height: '100vh',
+            zIndex: 100,
+            borderRight: '1px solid #f0f0f0',
+            boxShadow: collapsed ? undefined : '2px 0 8px rgba(0,0,0,0.06)',
+          }}
+        >
+          {menuContent}
+        </Sider>
+      )}
+      <Layout style={{ marginLeft: isMobile ? 0 : collapsed ? 80 : 240 }}>
         <Header style={{
           background: '#fff',
-          padding: '0 24px',
+          padding: isMobile ? '0 12px' : '0 24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -197,8 +239,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }}>
           <Button
             type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
+            icon={isMobile ? <MenuUnfoldOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => (isMobile ? setDrawerOpen(true) : setCollapsed(!collapsed))}
           />
           <Dropdown
             menu={{
@@ -215,7 +257,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </Dropdown>
         </Header>
-        <Content style={{ margin: 24, background: '#fff', borderRadius: 8, padding: 24 }}>
+        <Content style={{
+          margin: isMobile ? 8 : 24,
+          background: '#fff',
+          borderRadius: 8,
+          padding: isMobile ? 12 : 24,
+        }}>
           {children}
         </Content>
       </Layout>

@@ -153,6 +153,7 @@ export async function PATCH(req: NextRequest) {
       data: {
         active: false,
         closedAt: closedAt ? new Date(closedAt) : new Date(),
+        closeReason: isWon ? 'WON' : 'LOST',
       },
       include: { customer: { select: { id: true, name: true } } },
     })

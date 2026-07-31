@@ -316,12 +316,21 @@ export default function KanbanPage() {
               }}>
                 {getColumnPipelines(status).map((p: any) => {
                   const isLastColumn = status === '合作中'
+                  const followUpOverdue = p.nextFollowUpAt && dayjs(p.nextFollowUpAt).isBefore(dayjs().startOf('day'))
+                  const followUpDueToday = p.nextFollowUpAt && dayjs(p.nextFollowUpAt).isSame(dayjs(), 'day')
                   return (
                     <Card
                       key={p.id}
                       size="small"
                       hoverable
-                      style={{ cursor: 'pointer' }}
+                      style={{
+                        cursor: 'pointer',
+                        borderLeft: followUpOverdue
+                          ? '3px solid #ff4d4f'
+                          : followUpDueToday
+                            ? '3px solid #faad14'
+                            : undefined,
+                      }}
                       onClick={() => {
                         setSelectedPipeline(p)
                         setCommModalOpen(true)
@@ -334,6 +343,17 @@ export default function KanbanPage() {
                       <div style={{ marginTop: 2, fontSize: 12, color: '#999' }}>
                         最近聯繫: {p.lastContactDate ? dayjs(p.lastContactDate).format('MM-DD') : '-'}
                       </div>
+                      {p.nextFollowUpAt && (
+                        <div style={{
+                          marginTop: 2,
+                          fontSize: 12,
+                          color: followUpOverdue ? '#ff4d4f' : followUpDueToday ? '#faad14' : '#999',
+                        }}>
+                          下次跟進: {dayjs(p.nextFollowUpAt).format('MM-DD')}
+                          {followUpOverdue ? ' ⚠️ 已超期' : followUpDueToday ? ' · 今天' : ''}
+                          {p.nextAction ? ` — ${String(p.nextAction).substring(0, 15)}` : ''}
+                        </div>
+                      )}
 
                       {/* Status selector */}
                       <div style={{ marginTop: 8 }}>
