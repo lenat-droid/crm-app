@@ -20,6 +20,7 @@ import {
   UserOutlined,
   CustomerServiceOutlined,
   HistoryOutlined,
+  ScheduleOutlined,
 } from '@ant-design/icons'
 
 const { Header, Sider, Content } = Layout
@@ -40,6 +41,7 @@ const menuGroups = [
       { key: '/dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
       { key: '/product-stats', icon: <BarChartOutlined />, label: '产品潜力看板' },
       { key: '/kanban', icon: <ProjectOutlined />, label: '看板（Pipeline）' },
+      { key: '/weekly-review', icon: <ScheduleOutlined />, label: '每週復盤' },
     ],
   },
   {
@@ -132,6 +134,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith('/exports')) return '/exports'
     if (pathname.startsWith('/products')) return '/products'
     if (pathname.startsWith('/admin/import')) return '/admin/import'
+    if (pathname.startsWith('/weekly-review')) return '/weekly-review'
     return pathname
   }
 
@@ -184,7 +187,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         flexShrink: 0,
       }}>
         <Text style={{ fontSize: 11, color: '#bbb' }}>
-          {collapsed && !isMobile ? 'v1.1.0' : 'Proton CRM v1.1.0'}
+          {collapsed && !isMobile ? 'v1.2.0' : 'Proton CRM v1.2.0'}
         </Text>
       </div>
     </div>

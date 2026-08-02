@@ -150,11 +150,46 @@ npm run db:studio    # Prisma Studio (数据库可视化)
 - 看板卡片: 显示下次跟进日期，超期红条/今日黄条高亮
 - 订阅管理: 取消/恢复订阅操作（`PATCH /api/subscriptions/[id]`，流失数据从此可统计）
 
+## v1.2.0 变更记录 (2026-08-02) — 仪表盘日期筛选 + 每周复盤 + 团队活动量
+
+### Schema 增量
+- `WeeklyMetricSnapshot`: 周度指标快照表，存储每周 MRR/客户数/活动量/健康度等聚合数据，供仪表盘按时间筛选和周环比比较
+- `User.targetMRR` / `User.targetCustomers`: 销售目标配额字段（可空），用于计算达成率
+
+### 仪表盘增强 (`GET /api/dashboard` + `/dashboard`)
+- 新增时间范围筛选: 今天/本周/本月/本季度/自定义日期范围
+- 每个 KPI 卡支持按时间段过滤，MRR 卡显示周环比/月环比箭头 (WoW/MoM)
+- Pipeline 漏斗升级为真漏斗: 显示各阶段占比 + 赢率 (won / (won + lost))
+- MRR 趋势图支持自定义范围（不再硬编码 12 个月）
+- 健康度分布修复分母错误: 改用健康度实际记录总数而非客户总数
+- 客户总数排除 ARCHIVED 状态（与列表页一致）
+- SALES_MGR 区域数据隔离修复 (dashboard + records API)
+
+### 每周复盤页 (`/weekly-review`)
+- 基于 `WeeklyMetricSnapshot` + `/api/team-stats` 自动生成周度复盘报告
+- 显示: 本周 MRR/新签 MRR/流失 MRR/Pipeline 状态/成交丢单/客户构成/健康度
+- 团队活动量表: 每人新增线索/拜访/沟通/成交/丢单/MRR 达成率
+- 可选显示上周期对比 (WoW 环比箭头)
+
+### 团队统计 API (`GET /api/team-stats`)
+- 按周聚合每人活动量: newLeads/visits/comms/wonDeals/lostDeals/activeCustomers/MRR
+- 支持可选的上一周对比数据
+- 计算 MRR 达成率 (`mrr / targetMRR`)
+
+### 周度快照 (`POST /api/metrics/snapshot`)
+- 管理员触发周度指标快照计算，覆盖全部维度
+- 自动处理 ISO 周 (Mon-Sun) 边界
+- 幂等: 同一周的多次调用不重复写入
+
+### UI
+- AppLayout: 新增「每週復盤」菜单入口（看板类分组）
+- Dashboard 顶部增加时间筛选器 (Select + RangePicker + 刷新按钮)
+
 ## 待办 / 下一步
 
-- [ ] P2: 仪表盘日期筛选器 (按月/季度查看 MRR)
 - [ ] P2: 客户详情 → 支持工单 Tab
 - [ ] P2: 批量导入客户优化 (进度条 + 错误报告)
+- [ ] P2: 仪表盘支持按人/区域下钻 (personId/region 筛选参数)
 - [ ] P3: 暗色模式支持
 - [ ] P3: 移动端响应式优化
 
