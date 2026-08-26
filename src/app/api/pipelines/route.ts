@@ -9,14 +9,14 @@ import { validateCreatePipeline, validateUpdatePipeline, ValidationError } from 
 //   - 看板模式（默認）: 只返回 active=true（看板用）
 //   - 傳 ?active=all 時返回全部
 //   - 傳 ?active=closed 時只返回已關閉的
+//   - 看板模式支持分页: ?page=1&pageSize=50 (默认 50, 最大 200)
+//   - 看板模式下自动计算客户活跃订阅的 MRR 总额
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
-  const pageSize = Math.min(200, Math.max(1, parseInt(searchParams.get('pageSize') || '50')))
-  const activeFilter = searchParams.get('active') || 'true'  // default: only active
+  const activeFilter = searchParams.get('active') || 'true'
 
   // Data scoping
   const scope = getDataScope(session)
@@ -35,6 +35,54 @@ export async function GET(req: NextRequest) {
   }
   // 'all' → no filter
 
+  // Kanban mode (active=true or active=all): support pagination + include MRR
+  if (activeFilter === 'true') {
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
+    const pageSize = Math.min(200, Math.max(1, parseInt(searchParams.get('pageSize') || '50')))
+
+    const [pipelines, total] = await Promise.all([
+      prisma.pipeline.findMany({
+        where: pipelineScope,
+        include: {
+          customer: {
+            select: {
+              id: true, name: true, contactStatus: true,
+              follower: { select: { name: true } },
+              // Sum MRR of active subscriptions for this customer
+              subscriptions: {
+                where: { status: 'ACTIVE' },
+                select: { mrr: true },
+              },
+            },
+          },
+          salesPerson: { select: { id: true, name: true } },
+          communications: {
+            include: { createdBy: { select: { id: true, name: true } } },
+            orderBy: { contactOrder: 'asc' },
+            take: 5,
+          },
+        },
+        orderBy: [{ active: 'desc' }, { updatedAt: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.pipeline.count({ where: pipelineScope }),
+    ])
+
+    // Compute customer MRR
+    const enriched = pipelines.map(p => ({
+      ...p,
+      _customerMrr: p.customer?.subscriptions?.reduce((sum: number, s: any) => sum + s.mrr, 0) || 0,
+      customer: p.customer ? {
+        ...p.customer,
+        subscriptions: undefined, // remove the raw array from response
+      } : undefined,
+    }))
+
+    return NextResponse.json({ pipelines: enriched, total, page, pageSize, hasMore: page * pageSize < total })
+  }
+
+  // Closed/all view: no pagination, no MRR (simpler response)
   const [pipelines, total] = await Promise.all([
     prisma.pipeline.findMany({
       where: pipelineScope,
@@ -43,14 +91,12 @@ export async function GET(req: NextRequest) {
         salesPerson: { select: { id: true, name: true } },
         communications: { include: { createdBy: { select: { id: true, name: true } } }, orderBy: { contactOrder: 'asc' } },
       },
-      orderBy: [{ active: 'desc' }, { updatedAt: 'desc' }],  // active first
-      skip: (page - 1) * pageSize,
-      take: pageSize,
+      orderBy: [{ active: 'desc' }, { updatedAt: 'desc' }],
     }),
     prisma.pipeline.count({ where: pipelineScope }),
   ])
 
-  return NextResponse.json({ pipelines, total, page, pageSize })
+  return NextResponse.json({ pipelines, total, page: 1, pageSize: total })
 }
 
 // POST: create or update pipeline / add communication
@@ -159,18 +205,13 @@ export async function PATCH(req: NextRequest) {
     })
 
     // Sync customer contactStatus:
-    //   - 已成交（WON）→ contactStatus = "合作中"
-    //   - 不再合作（LOST from 合作中 column）→ contactStatus = "已流失"
-    //   - 未成交（LOST from other columns）→ contactStatus = "已建联"（保持聯繫，留未來機會）
     if (pipeline.customer) {
       let newContactStatus: string
       if (isWon) {
         newContactStatus = '合作中'
       } else if (pipeline.status === '合作中') {
-        // 合作中 → 不再合作（明确流失）
         newContactStatus = '已流失'
       } else {
-        // 其他状态关闭 → 保持联系
         newContactStatus = '已建联'
       }
 
