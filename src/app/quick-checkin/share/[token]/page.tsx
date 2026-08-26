@@ -5,35 +5,19 @@ import {
   Card, Form, Select, DatePicker, Input, Button, Typography, message,
   Tag, Space, Spin, Row, Col, Divider,
 } from 'antd'
-import { SendOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { SendOutlined, CheckCircleOutlined, GlobalOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useParams } from 'next/navigation'
+import { qcs, useLanguage } from '@/lib/i18n'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
 
-const productFields = [
-  { key: 'smtStatus', label: 'SMT' },
-  { key: 'psWebsiteStatus', label: 'PS Website' },
-  { key: 'aiCamStatus', label: 'AI Cam' },
-  { key: 'posStatus', label: 'POS' },
-  { key: 'platformManagedStatus', label: '平台管理' },
-  { key: 'omeStatus', label: 'OME' },
-  { key: 'smartRobotStatus', label: '智能機器人' },
-]
-
-const interestOptions = [
-  { label: '未接觸', value: 'NOT_CONTACTED' },
-  { label: '無興趣', value: 'NOT_INTERESTED' },
-  { label: '已了解', value: 'AWARE' },
-  { label: '感興趣', value: 'INTERESTED' },
-  { label: '高意向', value: 'HIGH_INTENT' },
-  { label: '已購買', value: 'PURCHASED' },
-]
-
 export default function ShareQuickCheckinPage() {
   const params = useParams()
   const token = params.token as string
+  const { lang, setLang } = useLanguage()
+  const t = qcs[lang]
   const [form] = Form.useForm()
   const [salesPerson, setSalesPerson] = useState<{ id: number; name: string } | null>(null)
   const [customers, setCustomers] = useState<any[]>([])
@@ -55,11 +39,11 @@ export default function ShareQuickCheckinPage() {
         setSalesPerson(data.user)
         setCustomers(data.customers || [])
         if (data.customers?.length === 0) {
-          setError('此連結暫無關聯客戶')
+          setError(t.noCustomers)
         }
       })
       .catch(() => {
-        setError('連結無效或已過期')
+        setError(t.errorTitle)
       })
       .finally(() => setLoading(false))
   }, [token])
@@ -76,7 +60,7 @@ export default function ShareQuickCheckinPage() {
 
   const onFinish = async (values: any) => {
     if (!selectedCustomer) {
-      message.warning('請先選擇客戶')
+      message.warning(t.selectFirst)
       return
     }
 
@@ -99,13 +83,17 @@ export default function ShareQuickCheckinPage() {
           smartRobotStatus: values.smartRobotStatus,
         }),
       })
-      if (!res.ok) throw new Error('Failed')
-      message.success(`✅ ${selectedCustomer.name} 已更新`)
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        throw new Error(errBody.error || 'Failed')
+      }
+      message.success(t.submitSuccess(selectedCustomer.name))
       setSubmitted(true)
       form.resetFields(['record', 'contactDate'])
       setSelectedCustomer(null)
-    } catch {
-      message.error('提交失敗，請重試')
+    } catch (err: any) {
+      console.error('Checkin share submit error:', err)
+      message.error(err.message || t.submitFail)
     } finally {
       setSubmitting(false)
     }
@@ -124,7 +112,7 @@ export default function ShareQuickCheckinPage() {
       <div style={{ maxWidth: 400, margin: '100px auto', textAlign: 'center' }}>
         <Card>
           <Title level={4} style={{ color: '#ff4d4f' }}>❌ {error}</Title>
-          <Text type="secondary">請聯繫您的管理員獲取新的分享連結</Text>
+          <Text type="secondary">{t.errorDesc}</Text>
         </Card>
       </div>
     )
@@ -150,15 +138,26 @@ export default function ShareQuickCheckinPage() {
         marginBottom: 16,
         padding: '32px 24px',
         color: '#fff',
+        position: 'relative',
       }}>
+        <div style={{ position: 'absolute', top: 16, right: 24 }}>
+          <Button
+            size="small"
+            icon={<GlobalOutlined />}
+            onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
+            style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff' }}
+          >
+            {lang === 'zh' ? 'EN' : '中'}
+          </Button>
+        </div>
         <Title level={3} style={{ color: '#fff', margin: 0, marginBottom: 4 }}>
-          📋 每日速報
+          📋 {t.title}
         </Title>
         <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14 }}>
-          {salesPerson?.name} 的客戶拜訪記錄
+          {t.subtitle(salesPerson?.name || '')}
         </Text>
         <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
-          免登錄 · 快速填寫
+          {t.subtitleNote}
         </div>
       </div>
 
@@ -167,14 +166,14 @@ export default function ShareQuickCheckinPage() {
           <Space>
             <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 20 }} />
             <div>
-              <Text strong>已提交成功！</Text>
+              <Text strong>{t.successTitle}</Text>
               <br />
-              <Text type="secondary">繼續填寫下一條</Text>
+              <Text type="secondary">{t.successDesc}</Text>
             </div>
           </Space>
           <div style={{ marginTop: 12 }}>
             <Button onClick={() => setSubmitted(false)} type="primary" size="small">
-              填寫下一條
+              {t.continueBtn}
             </Button>
           </div>
         </Card>
@@ -188,10 +187,10 @@ export default function ShareQuickCheckinPage() {
           initialValues={{ contactDate: dayjs() }}
         >
           {/* Step 1: Select Customer */}
-          <Form.Item label={<strong>① 選擇客戶</strong>} required>
+          <Form.Item label={<strong>{t.selectCustomer}</strong>} required>
             <Select
               showSearch
-              placeholder="搜尋客戶名稱..."
+              placeholder={t.searchPlaceholder}
               options={customerOptions}
               onSelect={(val: any) => handleCustomerSelect(val)}
               filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
@@ -209,8 +208,13 @@ export default function ShareQuickCheckinPage() {
                   {[selectedCustomer.city, selectedCustomer.region, selectedCustomer.type].filter(Boolean).join(' | ')}
                 </Text>
                 {selectedCustomer.contactStatus && (
-                  <Tag color={selectedCustomer.contactStatus === '合作中' ? 'green' : selectedCustomer.contactStatus === '已流失' ? 'red' : 'blue'} style={{ marginLeft: 8 }}>
-                    {selectedCustomer.contactStatus}
+                  <Tag color={
+                    selectedCustomer.contactStatus === '合作中' ? 'green' :
+                    selectedCustomer.contactStatus === '已流失' ? 'red' : 'blue'
+                  } style={{ marginLeft: 8 }}>
+                    {selectedCustomer.contactStatus === '合作中' ? t.customerStatusActive :
+                     selectedCustomer.contactStatus === '已流失' ? t.customerStatusChurned :
+                     selectedCustomer.contactStatus}
                   </Tag>
                 )}
               </Card>
@@ -218,27 +222,30 @@ export default function ShareQuickCheckinPage() {
               <Divider style={{ margin: '12px 0' }} />
 
               {/* Step 2: Record */}
-              <Form.Item label={<strong>② 溝通記錄</strong>}>
+              <Form.Item label={<strong>{t.commRecord}</strong>}>
                 <Form.Item name="contactDate" noStyle>
                   <DatePicker style={{ width: '100%', marginBottom: 8 }} />
                 </Form.Item>
                 <Form.Item name="record" noStyle>
-                  <TextArea rows={3} placeholder="請填寫溝通內容（選填）..." />
+                  <TextArea rows={3} placeholder={t.commPlaceholder} />
                 </Form.Item>
               </Form.Item>
 
               <Divider style={{ margin: '12px 0' }} />
 
               {/* Step 3: Product Interest */}
-              <Form.Item label={<strong>③ 產品興趣更新</strong>}>
+              <Form.Item label={<strong>{t.productInterest}</strong>}>
                 <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
-                  更新客戶對各產品的興趣程度
+                  {t.productInterestHint}
                 </Text>
                 <Row gutter={[8, 8]}>
-                  {productFields.map(pf => (
-                    <Col span={12} key={pf.key}>
-                      <Form.Item name={pf.key} label={pf.label} style={{ marginBottom: 8 }}>
-                        <Select size="small" options={interestOptions} />
+                  {Object.entries(t.productLabels).map(([key, label]) => (
+                    <Col span={12} key={key}>
+                      <Form.Item name={key} label={label} style={{ marginBottom: 8 }}>
+                        <Select
+                          size="small"
+                          options={Object.entries(t.interestLabels).map(([value, label]) => ({ label, value }))}
+                        />
                       </Form.Item>
                     </Col>
                   ))}
@@ -254,7 +261,7 @@ export default function ShareQuickCheckinPage() {
                 icon={<SendOutlined />}
                 style={{ marginTop: 8, height: 44 }}
               >
-                提交
+                {t.submitBtn}
               </Button>
             </>
           )}
@@ -263,7 +270,7 @@ export default function ShareQuickCheckinPage() {
 
       <div style={{ marginTop: 16, textAlign: 'center' }}>
         <Text type="secondary" style={{ fontSize: 12 }}>
-          🔒 資料安全：此連結僅供指定業務使用
+          {t.securityNote}
         </Text>
       </div>
     </div>
