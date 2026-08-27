@@ -3,8 +3,10 @@
 import React, { useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
-import { Layout, Menu, Button, Avatar, Dropdown, Typography, Spin } from 'antd'
+import { Layout, Menu, Button, Avatar, Dropdown, Typography, Spin, Drawer, Grid } from 'antd'
+import type { MenuProps } from 'antd'
 import {
+  CarryOutOutlined,
   DashboardOutlined,
   TeamOutlined,
   ProjectOutlined,
@@ -19,23 +21,38 @@ import {
   UserOutlined,
   CustomerServiceOutlined,
   HistoryOutlined,
+  ScheduleOutlined,
 } from '@ant-design/icons'
+import { useLanguage } from '@/lib/i18n'
 
 const { Header, Sider, Content } = Layout
 const { Text } = Typography
 
-const menuGroups = [
+// ── Navigation menu definitions ──
+
+// Inline type: matches Ant Design's MenuProps['items'] shape
+type MenuItem = Exclude<MenuProps['items'], undefined>[number]
+
+const menuGroupsZh: MenuItem[] = [
   {
-    type: 'group' as const,
+    type: 'group',
+    label: '工作台',
+    children: [
+      { key: '/today', icon: <CarryOutOutlined />, label: '今日跟进' },
+    ],
+  },
+  {
+    type: 'group',
     label: '看板類',
     children: [
       { key: '/dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
       { key: '/product-stats', icon: <BarChartOutlined />, label: '产品潜力看板' },
       { key: '/kanban', icon: <ProjectOutlined />, label: '看板（Pipeline）' },
+      { key: '/weekly-review', icon: <ScheduleOutlined />, label: '每週復盤' },
     ],
   },
   {
-    type: 'group' as const,
+    type: 'group',
     label: '記錄類',
     children: [
       { key: '/records', icon: <HistoryOutlined />, label: '记录总览' },
@@ -45,7 +62,7 @@ const menuGroups = [
     ],
   },
   {
-    type: 'group' as const,
+    type: 'group',
     label: '管理類',
     children: [
       { key: '/customers', icon: <TeamOutlined />, label: '客户管理' },
@@ -57,8 +74,49 @@ const menuGroups = [
   },
 ]
 
-const adminGroup = {
-  type: 'group' as const,
+const menuGroupsEn: MenuItem[] = [
+  {
+    type: 'group',
+    label: 'Workbench',
+    children: [
+      { key: '/today', icon: <CarryOutOutlined />, label: 'Today' },
+    ],
+  },
+  {
+    type: 'group',
+    label: 'Boards',
+    children: [
+      { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
+      { key: '/product-stats', icon: <BarChartOutlined />, label: 'Product Potential' },
+      { key: '/kanban', icon: <ProjectOutlined />, label: 'Kanban (Pipeline)' },
+      { key: '/weekly-review', icon: <ScheduleOutlined />, label: 'Weekly Review' },
+    ],
+  },
+  {
+    type: 'group',
+    label: 'Records',
+    children: [
+      { key: '/records', icon: <HistoryOutlined />, label: 'Records Overview' },
+      { key: '/leads/new', icon: <UserAddOutlined />, label: 'New Lead' },
+      { key: '/quick-checkin', icon: <CustomerServiceOutlined />, label: 'Daily Check-in' },
+      { key: '/visits', icon: <EnvironmentOutlined />, label: 'Visit Records' },
+    ],
+  },
+  {
+    type: 'group',
+    label: 'Management',
+    children: [
+      { key: '/customers', icon: <TeamOutlined />, label: 'Customers' },
+      { key: '/customer-health', icon: <BarChartOutlined />, label: 'Health' },
+      { key: '/subscriptions', icon: <ProjectOutlined />, label: 'Subscriptions' },
+      { key: '/segments', icon: <ProjectOutlined />, label: 'Segments' },
+      { key: '/support-tickets', icon: <CustomerServiceOutlined />, label: 'Support Tickets' },
+    ],
+  },
+]
+
+const adminGroupZh: MenuItem[] = [{
+  type: 'group',
   label: '管理後台',
   children: [
     { key: '/admin/users', icon: <SettingOutlined />, label: '用户管理' },
@@ -66,13 +124,41 @@ const adminGroup = {
     { key: '/admin/import', icon: <FileTextOutlined />, label: '数据导入' },
     { key: '/exports', icon: <FileTextOutlined />, label: '数据导出' },
   ],
-}
+}]
+
+const adminGroupEn: MenuItem[] = [{
+  type: 'group',
+  label: 'Admin Panel',
+  children: [
+    { key: '/admin/users', icon: <SettingOutlined />, label: 'Users' },
+    { key: '/products', icon: <BarChartOutlined />, label: 'Products' },
+    { key: '/admin/import', icon: <FileTextOutlined />, label: 'Import' },
+    { key: '/exports', icon: <FileTextOutlined />, label: 'Export' },
+  ],
+}]
+
+const mgrGroupZh: MenuItem[] = [{
+  type: 'group',
+  label: '管理後台',
+  children: [{ key: '/exports', icon: <FileTextOutlined />, label: '数据导出' }],
+}]
+
+const mgrGroupEn: MenuItem[] = [{
+  type: 'group',
+  label: 'Admin Panel',
+  children: [{ key: '/exports', icon: <FileTextOutlined />, label: 'Export' }],
+}]
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const { data: session, status } = useSession()
+  const { lang } = useLanguage()
+  const screens = Grid.useBreakpoint()
+  // md 断点 (768px) 以下视为移动端：侧边栏改为抽屉
+  const isMobile = screens.md === false
 
   if (status === 'loading') {
     return (
@@ -88,14 +174,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   const isAdmin = session?.user?.role === 'ADMIN'
+  const isMgr = session?.user?.role === 'SALES_MGR'
 
-  const items = [
+  const menuGroups: MenuItem[] = lang === 'en' ? menuGroupsEn : menuGroupsZh
+  const adminG: MenuItem[] = isAdmin ? adminGroupEn : adminGroupZh
+  const mgrG: MenuItem[] = mgrGroupEn
+
+  const items: MenuItem[] = [
     ...menuGroups,
-    ...(isAdmin ? [adminGroup] : []),
+    ...(isAdmin ? adminG : isMgr ? mgrG : []),
   ]
 
   const getSelectedKey = () => {
     if (pathname === '/') return '/dashboard'
+    if (pathname.startsWith('/today')) return '/today'
     if (pathname.startsWith('/quick-checkin')) return '/quick-checkin'
     if (pathname.startsWith('/product-stats')) return '/product-stats'
     if (pathname.startsWith('/customers')) return '/customers'
@@ -111,81 +203,125 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith('/exports')) return '/exports'
     if (pathname.startsWith('/products')) return '/products'
     if (pathname.startsWith('/admin/import')) return '/admin/import'
+    if (pathname.startsWith('/weekly-review')) return '/weekly-review'
     return pathname
   }
 
-  const userMenuItems = [
+  const roleLabel = session?.user?.role === 'ADMIN'
+    ? (lang === 'en' ? 'Admin' : '管理员')
+    : session?.user?.role === 'SALES_MGR'
+      ? (lang === 'en' ? 'Sales Mgr' : '销售主管')
+      : (lang === 'en' ? 'Sales' : '销售')
+
+  const userMenuItems: MenuProps['items'] = [
     {
       key: 'profile',
       icon: <UserOutlined />,
-      label: `${session?.user?.name} (${session?.user?.role === 'ADMIN' ? '管理员' : session?.user?.role === 'SALES_MGR' ? '销售主管' : '销售'})`,
+      label: `${session?.user?.name} (${roleLabel})`,
       disabled: true,
     },
-    { type: 'divider' as const },
+    { type: 'divider' },
     {
       key: 'logout',
       icon: <LogoutOutlined />,
-      label: '退出登录',
+      label: lang === 'en' ? 'Logout' : '退出登录',
       danger: true,
     },
   ]
 
+  const titleText = collapsed && !isMobile ? 'CRM' : (lang === 'en' ? 'CRM System' : 'CRM 系統')
+  const versionText = collapsed && !isMobile ? 'v1.2.0' : 'Proton CRM v1.2.0'
+
+  const menuContent = (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{
+        height: 64,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderBottom: '1px solid #f0f0f0',
+        flexShrink: 0,
+      }}>
+        <Text strong style={{ fontSize: collapsed && !isMobile ? 16 : 18, color: '#1677ff' }}>
+          {titleText}
+        </Text>
+      </div>
+      <div style={{ overflowY: 'auto', flex: 1 }}>
+        <Menu
+          mode="inline"
+          selectedKeys={[getSelectedKey()]}
+          items={items}
+          onClick={({ key }) => {
+            router.push(key)
+            setDrawerOpen(false)
+          }}
+          style={{ border: 'none' }}
+        />
+      </div>
+      <div style={{
+        borderTop: '1px solid #f0f0f0',
+        padding: collapsed && !isMobile ? '8px 0' : '8px 16px',
+        textAlign: 'center',
+        flexShrink: 0,
+      }}>
+        <Text style={{ fontSize: 11, color: '#bbb' }}>
+          {versionText}
+        </Text>
+      </div>
+    </div>
+  )
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        trigger={null}
-        collapsible
-        collapsed={collapsed}
-        theme="light"
-        style={{
-          borderRight: '1px solid #f0f0f0',
-          boxShadow: collapsed ? undefined : '2px 0 8px rgba(0,0,0,0.06)',
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <div style={{
-            height: 64,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderBottom: '1px solid #f0f0f0',
-          }}>
-            <Text strong style={{ fontSize: collapsed ? 16 : 18, color: '#1677ff' }}>
-              {collapsed ? 'CRM' : 'CRM 系統'}
-            </Text>
-          </div>
-          <Menu
-            mode="inline"
-            selectedKeys={[getSelectedKey()]}
-            items={items}
-            onClick={({ key }) => router.push(key)}
-            style={{ border: 'none', flex: 1 }}
-          />
-          <div style={{
-            borderTop: '1px solid #f0f0f0',
-            padding: collapsed ? '8px 0' : '8px 16px',
-            textAlign: 'center',
-          }}>
-            <Text style={{ fontSize: 11, color: '#bbb' }}>
-              {collapsed ? 'v1.0.0' : 'Proton CRM v1.0.0'}
-            </Text>
-          </div>
-        </div>
-      </Sider>
-      <Layout>
+      {isMobile ? (
+        <Drawer
+          placement="left"
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          width={240}
+          styles={{ body: { padding: 0 } }}
+          closable={false}
+        >
+          {menuContent}
+        </Drawer>
+      ) : (
+        <Sider
+          trigger={null}
+          collapsible
+          collapsed={collapsed}
+          theme="light"
+          width={240}
+          style={{
+            position: 'fixed',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            height: '100vh',
+            zIndex: 100,
+            borderRight: '1px solid #f0f0f0',
+            boxShadow: collapsed ? undefined : '2px 0 8px rgba(0,0,0,0.06)',
+          }}
+        >
+          {menuContent}
+        </Sider>
+      )}
+      <Layout style={{ marginLeft: isMobile ? 0 : collapsed ? 80 : 240 }}>
         <Header style={{
           background: '#fff',
-          padding: '0 24px',
+          padding: isMobile ? '0 12px' : '0 24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           borderBottom: '1px solid #f0f0f0',
           height: 64,
+          position: 'sticky',
+          top: 0,
+          zIndex: 99,
         }}>
           <Button
             type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
+            icon={isMobile ? <MenuUnfoldOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => (isMobile ? setDrawerOpen(true) : setCollapsed(!collapsed))}
           />
           <Dropdown
             menu={{
@@ -202,7 +338,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </Dropdown>
         </Header>
-        <Content style={{ margin: 24 }}>
+        <Content style={{
+          margin: isMobile ? 8 : 24,
+          background: '#fff',
+          borderRadius: 8,
+          padding: isMobile ? 12 : 24,
+        }}>
           {children}
         </Content>
       </Layout>

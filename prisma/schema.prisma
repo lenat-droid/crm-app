@@ -20,6 +20,8 @@ model User {
   phone     String?
   active    Boolean  @default(true)
   shareToken String? @unique
+  targetMRR Float?   // 月度 MRR 目标 (USD) — 用于计算达成率
+  targetCustomers Int? // 客户数目标 — 用于计算达成率
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -159,6 +161,7 @@ model Pipeline {
   status        String   @default("已建联") // ⚠️ / 已建联 / 初步有意向 / 合作中
   active        Boolean  @default(true)     // false when pipeline is closed/archived
   closedAt      DateTime?
+  closeReason   String?  // WON | LOST, set when pipeline is closed
 
   smt           String?
   psWebsite     String?
@@ -166,6 +169,8 @@ model Pipeline {
   agencyManaged String?
 
   lastContactDate DateTime?
+  nextFollowUpAt  DateTime? // 下次跟进日期 — 跟进机制的发动机
+  nextAction      String?   // 下次跟进要做什么
   notes           String?
 
   createdAt DateTime @default(now())
@@ -181,6 +186,7 @@ model Communication {
   contactDate  DateTime
   record       String
   contactOrder Int
+  source       String   @default("manual") // manual | agent — agent 写入需审计
   createdById  Int?
   createdBy    User?    @relation(fields: [createdById], references: [id])
   createdAt    DateTime @default(now())
@@ -415,4 +421,46 @@ model ExportJob {
   requestedBy   User?    @relation(fields: [requestedById], references: [id])
   createdAt     DateTime @default(now())
   completedAt   DateTime?
+}
+
+// ── Weekly Metrics Snapshot (v1.2.0) ──
+// Auto-computed rollup for dashboard filters, WoW comparison, and weekly review.
+// Each row covers one ISO week (Monday→Sunday).
+model WeeklyMetricSnapshot {
+  id              Int      @id @default(autoincrement())
+  weekStart       DateTime @unique           // ISO week Monday 00:00 UTC
+  weekEnd         DateTime                    // Sunday 23:59:59 UTC
+  totalCustomers  Int      @default(0)       // as of week end
+  activeSubscriptions Int  @default(0)       // ACTIVE or TRIALING
+  totalMrr        Float    @default(0)       // sum of ACTIVE subscription mrr
+  newMrr          Float    @default(0)       // MRR added this week (new ACTIVE subs)
+  churnMrr        Float    @default(0)       // MRR lost this week (cancelled/expired subs)
+  netMrr          Float    @default(0)       // newMrr - churnMrr
+  wonMrr          Float    @default(0)       // MRR from newly WON pipelines
+  // Pipeline counts by status (snapshot as of week end)
+  pipelinePending Int      @default(0)       // ⚠️ 待跟进
+  pipelineConnected   Int @default(0)       // 已建联
+  pipelineInterested Int @default(0)       // 初步有意向
+  pipelineCooperating Int @default(0)      // 合作中
+  // Customer tier breakdown
+  tierEnterprise  Int      @default(0)
+  tierMidMarket   Int      @default(0)
+  tierSmb         Int      @default(0)
+  // Health breakdown
+  healthyCount    Int      @default(0)       // churnRisk LOW
+  attentionCount  Int      @default(0)       // churnRisk MEDIUM
+  atRiskCount     Int      @default(0)       // churnRisk HIGH
+  avgHealthScore  Float    @default(0)       // average overallScore
+  // Per-user activity (rollup of that week's activity)
+  totalNewLeads   Int      @default(0)       // leads created this week
+  totalVisits     Int      @default(0)       // visits created this week
+  totalComms      Int      @default(0)       // communications created this week
+  wonDeals        Int      @default(0)       // pipelines closed WON this week
+  lostDeals       Int      @default(0)       // pipelines closed LOST this week
+  // Per-user breakdown (JSON, up to 50 users)
+  userActivity    String?  // JSON: [{userId, userName, newLeads, visits, comms, pipelineAdvancements, newMrr, targetMRR, targetCustomers, totalCustomers}]
+  // Created by
+  createdBy       String   @default("system") // system / admin user name
+
+  createdAt       DateTime @default(now())
 }

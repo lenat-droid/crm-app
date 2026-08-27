@@ -183,18 +183,18 @@ export default function QuickCheckinPage() {
                 const res = await fetch('/api/me/share')
                 const data = await res.json()
                 await navigator.clipboard.writeText(data.shareUrl)
-                message.success('分享連結已複製！可發送給業務人員')
+                message.success(t.shareCopied)
               } catch {
                 // Fallback: show the URL
                 const res = await fetch('/api/me/share')
                 const data = await res.json()
                 setShareUrl(data.shareUrl)
-                message.success('複製失敗，請手動複製下方連結')
+                message.success(t.shareCopyFailed)
               }
             }}
             style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff' }}
           >
-            分享連結
+            {t.shareBtn}
           </Button>
           <Button
             size="small"
@@ -222,7 +222,7 @@ export default function QuickCheckinPage() {
       {shareUrl && (
         <Alert
           type="info"
-          message="分享連結"
+          message={t.shareAlertTitle}
           description={shareUrl}
           showIcon
           closable
@@ -230,9 +230,9 @@ export default function QuickCheckinPage() {
           action={
             <Button size="small" onClick={() => {
               navigator.clipboard.writeText(shareUrl)
-              message.success('已複製')
+              message.success(t.shareAlertCopyBtn)
             }}>
-              <CopyOutlined /> 複製
+              <CopyOutlined /> {t.shareCopyBtn}
             </Button>
           }
         />

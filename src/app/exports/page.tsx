@@ -44,6 +44,23 @@ export default function ExportsPage() {
 
   useEffect(() => { fetchExports() }, [])
 
+  const downloadFile = async (id: number, type: string) => {
+    const res = await fetch(`/api/exports/${id}/download`)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || '下載失敗')
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${(type || 'export').toLowerCase()}_${dayjs().format('YYYYMMDD_HHmm')}.csv`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
   const handleExport = async () => {
     setExporting(true)
     try {
@@ -54,7 +71,8 @@ export default function ExportsPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Export failed')
-      message.success(`匯出完成：${data.rowCount} 條記錄`)
+      await downloadFile(data.id, exportType)
+      message.success(`匯出完成：${data.rowCount} 條記錄，已開始下載`)
       fetchExports()
     } catch (err: any) {
       message.error(err.message || '匯出失敗')
@@ -64,14 +82,10 @@ export default function ExportsPage() {
   }
 
   const handleDownload = async (exportJob: any) => {
-    // Re-fetch the export data and trigger download
     try {
-      const res = await fetch(`/api/exports/${exportJob.id}`)
-      const data = await res.json()
-      // For now, just show the details — actual file download needs blob storage
-      message.info(`已準備好 ${data.export.rowCount} 條記錄的匯出 (${Math.round((data.export.fileSize || 0) / 1024)} KB)`)
-    } catch {
-      message.error('下載失敗')
+      await downloadFile(exportJob.id, exportJob.type)
+    } catch (err: any) {
+      message.error(err.message || '下載失敗')
     }
   }
 

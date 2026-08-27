@@ -5,11 +5,11 @@ import {
   Card, Typography, Tag, message, Modal, Form, Input, InputNumber, Select, DatePicker,
   Empty, Spin, Button, Space, Popconfirm, Row, Col, Statistic,
 } from 'antd'
+import dayjs from 'dayjs'
 import {
   CheckCircleOutlined, CloseCircleOutlined,
   HistoryOutlined, ReloadOutlined,
 } from '@ant-design/icons'
-import dayjs from 'dayjs'
 import AppLayout from '@/components/Layout/AppLayout'
 
 const { Title, Text } = Typography
@@ -157,7 +157,7 @@ export default function KanbanPage() {
         productId: values.productId,
         plan: values.plan || 'MONTHLY',
         mrr: values.mrr || 0,
-        startDate: values.startDate?.toISOString(),
+        startDate: values.startDate?.toISOString() || dayjs().toISOString(),
         endDate: values.endDate?.toISOString(),
         autoRenew: values.autoRenew !== false,
         notes: values.notes || null,
@@ -316,12 +316,21 @@ export default function KanbanPage() {
               }}>
                 {getColumnPipelines(status).map((p: any) => {
                   const isLastColumn = status === '合作中'
+                  const followUpOverdue = p.nextFollowUpAt && dayjs(p.nextFollowUpAt).isBefore(dayjs().startOf('day'))
+                  const followUpDueToday = p.nextFollowUpAt && dayjs(p.nextFollowUpAt).isSame(dayjs(), 'day')
                   return (
                     <Card
                       key={p.id}
                       size="small"
                       hoverable
-                      style={{ cursor: 'pointer' }}
+                      style={{
+                        cursor: 'pointer',
+                        borderLeft: followUpOverdue
+                          ? '3px solid #ff4d4f'
+                          : followUpDueToday
+                            ? '3px solid #faad14'
+                            : undefined,
+                      }}
                       onClick={() => {
                         setSelectedPipeline(p)
                         setCommModalOpen(true)
@@ -334,6 +343,17 @@ export default function KanbanPage() {
                       <div style={{ marginTop: 2, fontSize: 12, color: '#999' }}>
                         最近聯繫: {p.lastContactDate ? dayjs(p.lastContactDate).format('MM-DD') : '-'}
                       </div>
+                      {p.nextFollowUpAt && (
+                        <div style={{
+                          marginTop: 2,
+                          fontSize: 12,
+                          color: followUpOverdue ? '#ff4d4f' : followUpDueToday ? '#faad14' : '#999',
+                        }}>
+                          下次跟進: {dayjs(p.nextFollowUpAt).format('MM-DD')}
+                          {followUpOverdue ? ' ⚠️ 已超期' : followUpDueToday ? ' · 今天' : ''}
+                          {p.nextAction ? ` — ${String(p.nextAction).substring(0, 15)}` : ''}
+                        </div>
+                      )}
 
                       {/* Status selector */}
                       <div style={{ marginTop: 8 }}>
@@ -512,8 +532,8 @@ export default function KanbanPage() {
           <Form.Item name="mrr" label="MRR (USD)" rules={[{ required: true, message: '請輸入月經常性收入' }]}>
             <InputNumber min={0} step={10} style={{ width: '100%' }} placeholder="e.g. 499" />
           </Form.Item>
-          <Form.Item name="startDate" label="開始日期">
-            <DatePicker style={{ width: '100%' }} />
+          <Form.Item name="startDate" label="開始日期" rules={[{ required: true, message: '請選擇開始日期' }]}>
+            <DatePicker defaultValue={dayjs()} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="endDate" label="結束日期">
             <DatePicker style={{ width: '100%' }} />

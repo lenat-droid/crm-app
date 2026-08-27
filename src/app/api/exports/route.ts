@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-
-const EXPORT_TYPES = ['CUSTOMERS', 'SUBSCRIPTIONS', 'TICKETS', 'LEADS'] as const
+import { EXPORT_TYPES, buildExportRows, convertToCSV } from '@/lib/export-csv'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -58,38 +57,21 @@ export async function POST(req: NextRequest) {
   })
 
   try {
-    // Build query based on type
-    let rows: any[] = []
-    if (type === 'CUSTOMERS') {
-      rows = await prisma.customer.findMany({
-        where: data.filters ? buildCustomerFilter(data.filters) : {},
-        include: { follower: { select: { name: true } } },
-      })
-    } else if (type === 'SUBSCRIPTIONS') {
-      rows = await prisma.subscription.findMany({
-        include: { customer: { select: { name: true } }, product: { select: { name: true } } },
-      })
-    } else if (type === 'TICKETS') {
-      rows = await prisma.supportTicket.findMany({
-        include: { customer: { select: { name: true } }, assignedTo: { select: { name: true } } },
-      })
-    } else if (type === 'LEADS') {
-      rows = await prisma.lead.findMany({
-        include: { registeredBy: { select: { name: true } } },
-      })
-    }
+    // Fetch rows with RBAC scope applied (SALES_MGR limited to own region)
+    const rows = await buildExportRows(type, data.filters, session)
 
-    // Convert to CSV
     const csv = convertToCSV(rows)
     const buffer = Buffer.from(csv, 'utf-8')
 
-    // Update job with results
+    // Update job with results; the file itself is regenerated on demand
+    // by GET /api/exports/[id]/download
     await prisma.exportJob.update({
       where: { id: exportJob.id },
       data: {
         status: 'COMPLETED',
         rowCount: rows.length,
         fileSize: buffer.length,
+        fileUrl: `/api/exports/${exportJob.id}/download`,
         completedAt: new Date(),
       },
     })
@@ -109,61 +91,3 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function buildCustomerFilter(filters: any) {
-  const where: any = {}
-  if (filters.region) where.region = filters.region
-  if (filters.type) where.type = filters.type
-  if (filters.tier) where.tier = filters.tier
-  if (filters.status) where.status = filters.status
-  return where
-}
-
-function convertToCSV(rows: any[]): string {
-  if (rows.length === 0) return 'No data'
-
-  // Extract headers from first row
-  const headers = extractHeaders(rows[0])
-  const lines = [headers.join(',')]
-
-  for (const row of rows) {
-    const values = headers.map(h => {
-      const val = getNestedValue(row, h)
-      if (val === null || val === undefined) return ''
-      const str = String(val)
-      // Escape quotes and wrap in quotes if contains comma or quote
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`
-      }
-      return str
-    })
-    lines.push(values.join(','))
-  }
-
-  return lines.join('\n')
-}
-
-function extractHeaders(obj: any): string[] {
-  const headers: string[] = []
-  for (const key of Object.keys(obj)) {
-    if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-      // Nested object: flatten with dot notation
-      const nested = extractHeaders(obj[key])
-      for (const n of nested) {
-        headers.push(`${key}.${n}`)
-      }
-    } else {
-      headers.push(key)
-    }
-  }
-  return headers
-}
-
-function getNestedValue(obj: any, path: string): any {
-  const parts = path.split('.')
-  let current = obj
-  for (const part of parts) {
-    if (current === null || current === undefined) return undefined
-    current = current[part]
-  }
-  return current
-}
