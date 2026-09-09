@@ -48,6 +48,7 @@ const menuGroupsZh: MenuItem[] = [
     children: [
       { key: '/dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
       { key: '/product-stats', icon: <BarChartOutlined />, label: '产品潜力看板' },
+      { key: '/operating-dashboard', icon: <BarChartOutlined />, label: '经营看板' },
       { key: '/kanban', icon: <ProjectOutlined />, label: '看板（Pipeline）' },
       { key: '/weekly-review', icon: <ScheduleOutlined />, label: '每週復盤' },
     ],
@@ -89,6 +90,7 @@ const menuGroupsEn: MenuItem[] = [
     children: [
       { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
       { key: '/product-stats', icon: <BarChartOutlined />, label: 'Product Potential' },
+      { key: '/operating-dashboard', icon: <BarChartOutlined />, label: 'Operating Dashboard' },
       { key: '/kanban', icon: <ProjectOutlined />, label: 'Kanban (Pipeline)' },
       { key: '/weekly-review', icon: <ScheduleOutlined />, label: 'Weekly Review' },
     ],
@@ -191,6 +193,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith('/today')) return '/today'
     if (pathname.startsWith('/quick-checkin')) return '/quick-checkin'
     if (pathname.startsWith('/product-stats')) return '/product-stats'
+    if (pathname.startsWith('/operating-dashboard')) return '/operating-dashboard'
     if (pathname.startsWith('/customers')) return '/customers'
     if (pathname.startsWith('/kanban')) return '/kanban'
     if (pathname.startsWith('/visits')) return '/visits'
@@ -231,7 +234,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   ]
 
   const titleText = collapsed && !isMobile ? 'CRM' : (lang === 'en' ? 'CRM System' : 'CRM 系統')
-  const versionText = collapsed && !isMobile ? 'v1.2.0' : 'Proton CRM v1.2.0'
+  const versionText = collapsed && !isMobile ? 'v1.3.0' : 'Proton CRM v1.3.0'
 
   // Language toggle button
   const langToggleBtn = (

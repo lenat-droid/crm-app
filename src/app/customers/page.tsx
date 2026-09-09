@@ -6,6 +6,7 @@ import { PlusOutlined, SearchOutlined, ReloadOutlined, FilterOutlined, EditOutli
 import { useRouter } from 'next/navigation'
 import { toastSuccess, handleApiError } from '@/lib/toast'
 import { PRODUCT_FIELDS, INTEREST_LEVELS } from '@/lib/constants'
+import AppLayout from '@/components/Layout/AppLayout'
 
 const { Title } = Typography
 
