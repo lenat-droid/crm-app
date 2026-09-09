@@ -128,19 +128,10 @@ export async function computeWeeklySnapshot(
   let churnMrr = 0
   let wonMrr = 0
 
-  // Compute netMrr from active subs at week end
-  const activeSubsForMrr = await prisma.subscription.findMany({
-    where: {
-      status: 'ACTIVE',
-      startDate: { lte: weekEndStr },
-      OR: [
-        { endDate: { equals: null } },
-        { endDate: { gte: weekStartStr } },
-      ],
-    },
-    select: { mrr: true },
-  })
-  const totalMrr = activeSubsForMrr.reduce((s, sub) => s + sub.mrr, 0)
+  // New MRR: sum of active subscriptions created this week
+  for (const sub of newSubs) {
+    newMrr += sub.mrr
+  }
 
   // Churn MRR from explicitly churned subs
   churnMrr = churnedSubs.reduce((s, sub) => s + sub.mrr, 0)
@@ -224,10 +215,10 @@ export async function computeWeeklySnapshot(
     weekEnd: weekEndStr,
     totalCustomers,
     activeSubscriptions,
-    totalMrr,
+    totalMrr: totalMrrResult._sum.mrr || 0,
     newMrr: Math.round(newMrr * 100) / 100,
     churnMrr: Math.round(churnMrr * 100) / 100,
-    netMrr: Math.round((totalMrr - churnMrr) * 100) / 100,
+    netMrr: Math.round(((totalMrrResult._sum.mrr || 0) - churnMrr) * 100) / 100,
     wonMrr: Math.round(wonMrr * 100) / 100,
     pipelinePending: pm['⚠️'] || 0,
     pipelineConnected: pm['已建联'] || 0,

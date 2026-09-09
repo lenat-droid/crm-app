@@ -22,6 +22,7 @@ import {
   CustomerServiceOutlined,
   HistoryOutlined,
   ScheduleOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons'
 import { useLanguage } from '@/lib/i18n'
 
@@ -155,7 +156,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const { data: session, status } = useSession()
-  const { lang } = useLanguage()
+  const { lang, setLang } = useLanguage()
   const screens = Grid.useBreakpoint()
   // md 断点 (768px) 以下视为移动端：侧边栏改为抽屉
   const isMobile = screens.md === false
@@ -232,6 +233,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const titleText = collapsed && !isMobile ? 'CRM' : (lang === 'en' ? 'CRM System' : 'CRM 系統')
   const versionText = collapsed && !isMobile ? 'v1.2.0' : 'Proton CRM v1.2.0'
 
+  // Language toggle button
+  const langToggleBtn = (
+    <Button
+      size="small"
+      type="text"
+      icon={<GlobalOutlined />}
+      onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
+      title={lang === 'zh' ? 'Switch to English' : '切换中文'}
+      style={{ fontSize: 14, padding: '0 4px' }}
+    >
+      {!collapsed && !isMobile ? (lang === 'zh' ? 'EN' : '中') : null}
+    </Button>
+  )
+
   const menuContent = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{
@@ -263,7 +278,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         padding: collapsed && !isMobile ? '8px 0' : '8px 16px',
         textAlign: 'center',
         flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 4,
       }}>
+        {langToggleBtn}
         <Text style={{ fontSize: 11, color: '#bbb' }}>
           {versionText}
         </Text>
