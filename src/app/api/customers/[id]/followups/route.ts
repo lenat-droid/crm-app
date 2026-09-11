@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { canAccessCustomer } from '@/lib/auth-helpers'
 import { isAgentRequest } from '@/lib/agent-auth'
 
 /**
@@ -32,9 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     include: { pipeline: { select: { id: true } } },
   })
   if (!customer) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (!isAgent && !canAccessCustomer(session, customer)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  // All authenticated users can write follow-ups to any customer (cross-sales visits).
+  // No ownership/follower check — only block unauthenticated requests.
 
   const body = await req.json().catch(() => null)
   if (!body || typeof body.record !== 'string' || !body.record.trim()) {

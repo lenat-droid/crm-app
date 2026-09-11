@@ -54,3 +54,28 @@ export const SUBSCRIPTION_PLANS = ['MONTHLY', 'QUARTERLY', 'SEMI_ANNUAL', 'ANNUA
 export const BILLING_TYPES = ['RECURRING', 'ONE_TIME'] as const
 export const SUBSCRIPTION_STATUSES = ['ACTIVE', 'CANCELLED', 'EXPIRED', 'TRIALING', 'PENDING_SIGNATURE'] as const
 export const TICKET_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const
+
+// ── Operating Dashboard (v1.3.0) ──
+
+export const REVENUE_TYPES = ['SUBSCRIPTION', 'TRANSACTION', 'AI_TOKEN'] as const
+
+export const PRODUCT_KEYS = [
+  'pocketStore',
+  'pos',
+  'loyalty',
+  'smt',
+  'aiManager',
+  'other',
+] as const
+
+export const PRODUCT_KEY_LABELS: Record<string, string> = {
+  pocketStore: 'Pocket Store',
+  pos: 'POS',
+  loyalty: 'Loyalty',
+  smt: 'SMT',
+  aiManager: 'AI Manager',
+  other: '其他',
+}
+
+export const DEPLOYMENT_STATUSES = ['ACTIVE', 'CHURNED', 'PAUSED'] as const
+export const DEPLOYMENT_PLANS = ['FREE', 'BASIC', 'PRO'] as const

@@ -30,6 +30,20 @@ export function getDataScope(session: Session | null): Record<string, unknown> {
 }
 
 /**
+ * Check if the current user can write to a customer record (add communication, visit, etc.).
+ * All authenticated users (ADMIN / SALES_MGR / SALES) can write to any customer —
+ * cross-sales visits and follow-ups are allowed.
+ */
+export function canWriteCustomer(
+  session: Session | null,
+  _customer: { followerId?: number | null; region?: string | null } | null,
+): boolean {
+  if (!session) return false
+  // Any authenticated user can write follow-ups/visits to any customer
+  return true
+}
+
+/**
  * Check if the current user can access/modify a specific customer record.
  * Used in detail/update endpoints where we need to verify ownership.
  */

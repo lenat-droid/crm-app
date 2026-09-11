@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getDataScope } from '@/lib/auth-helpers'
 import { validateCreateVisit, ValidationError } from '@/lib/validation/schemas'
 
 export async function GET(req: NextRequest) {
@@ -14,12 +13,25 @@ export async function GET(req: NextRequest) {
   const pageSize = Math.min(200, Math.max(1, parseInt(searchParams.get('pageSize') || '20')))
   const customerId = searchParams.get('customerId')
 
-  // Data scoping: SALES see only their own visits
-  const scope = getDataScope(session)
+  // Cross-sales visits: SALES sees own visits + visits in their region
   const where: any = {}
 
   if (session.user.role === 'SALES') {
-    where.visitedById = session.user.id
+    // SALES can see: their own visits + visits in their region (cross-sales visits)
+    const userRegion = (session as any).user?.region
+    if (userRegion) {
+      where.OR = [
+        { visitedById: session.user.id },
+        { customer: { region: userRegion } },
+      ]
+    } else {
+      where.visitedById = session.user.id
+    }
+  } else if (session.user.role === 'SALES_MGR' && session.user.region) {
+    where.OR = [
+      { visitedBy: { region: session.user.region } },
+      { customer: { region: session.user.region } },
+    ]
   }
   if (customerId) where.customerId = parseInt(customerId)
 

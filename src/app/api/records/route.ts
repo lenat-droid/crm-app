@@ -14,20 +14,48 @@ export async function GET(req: NextRequest) {
   const customerId = searchParams.get('customerId')
 
   // ── Build scoped WHERE clauses ──
-  // SALES sees own records; SALES_MGR sees records created by users in their region
+  // SALES sees: own records + records on customers in their region (cross-sales visits)
+  // SALES_MGR sees: records in their region (already correct, but add customer-region coverage)
   const leadWhere: any = {}
   const commWhere: any = {}
   const visitWhere: any = {}
 
   if (session.user.role === 'SALES') {
+    // Leads: still only own (sales registers their own leads)
     leadWhere.registeredById = session.user.id
-    commWhere.createdById = session.user.id
-    visitWhere.visitedById = session.user.id
+
+    const userRegion = (session as any).user?.region
+    // Communications: own + region-level (cross-sales check-ins)
+    if (userRegion) {
+      commWhere.OR = [
+        { createdById: session.user.id },
+        { pipeline: { customer: { region: userRegion } } },
+      ]
+    } else {
+      commWhere.createdById = session.user.id
+    }
+    // Visits: own + region-level (cross-sales visits)
+    if (userRegion) {
+      visitWhere.OR = [
+        { visitedById: session.user.id },
+        { customer: { region: userRegion } },
+      ]
+    } else {
+      visitWhere.visitedById = session.user.id
+    }
   } else if (session.user.role === 'SALES_MGR' && session.user.region) {
     const region = session.user.region
     leadWhere.registeredBy = { region }
-    commWhere.createdBy = { region }
-    visitWhere.visitedBy = { region }
+    // Communications: created by users in region OR on customers in region
+    commWhere.OR = [
+      { createdBy: { region } },
+      { pipeline: { customer: { region } } },
+    ]
+    // Visits: by users in region OR on customers in region
+    visitWhere.OR = [
+      { visitedBy: { region } },
+      { customer: { region } },
+    ]
   }
 
   if (customerId) {
