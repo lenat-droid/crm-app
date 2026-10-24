@@ -1,0 +1,17 @@
+{
+  "next_build": true,
+  "generated_pages": 61,
+  "typescript": true,
+  "targeted_eslint": "passed using next/core-web-vitals, zero warnings/errors",
+  "docker_image": "not tested; Docker unavailable",
+  "source_freeze_sha_matches": 51,
+  "growth_existing_regression": {
+    "passed": 24,
+    "failed": 0
+  },
+  "https_origin_cookie_host_test": {
+    "passed": 1,
+    "failed": 0
+  },
+  "company_inbox_receipt": "verified_by_user"
+}

@@ -1,5 +1,6 @@
 import type { Session } from 'next-auth'
 import { prisma } from './prisma'
+import { leadScope } from './aim-leads'
 
 export const EXPORT_TYPES = ['CUSTOMERS', 'SUBSCRIPTIONS', 'TICKETS', 'LEADS'] as const
 
@@ -34,7 +35,7 @@ export async function buildExportRows(type: string, filters: any, session: Sessi
   }
   if (type === 'LEADS') {
     return prisma.lead.findMany({
-      where: region ? { registeredBy: { region } } : {},
+      where: await leadScope(session, region ? { registeredBy: { region } } : {}),
       include: { registeredBy: { select: { name: true } } },
     })
   }

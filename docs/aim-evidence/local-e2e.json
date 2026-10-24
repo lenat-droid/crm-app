@@ -1,0 +1,67 @@
+{
+  "run": "AIM-E2E-2026-10-24T05-12-51-210Z",
+  "started_at": "2026-10-24T05:12:51.211Z",
+  "checks": [
+    {
+      "name": "unauthorized_session_and_share_token_rejected",
+      "passed": true
+    },
+    {
+      "name": "website_save_crm_sync_identity_consent_and_idempotency",
+      "passed": true,
+      "application_id": "84120a1f-8d85-41f3-a897-6aebdcce257f",
+      "crm_id": 3,
+      "report_id": "ad6ffd2a-edfc-4715-9dbb-f556b8ddc25f",
+      "customer_created": false
+    },
+    {
+      "name": "operator_login_followup_and_role_scope",
+      "passed": true
+    },
+    {
+      "name": "existing_manual_customer_pipeline_preserved",
+      "passed": true
+    },
+    {
+      "name": "smtp_real_inbox_received_and_deduplicated",
+      "passed": true,
+      "inbox_id": "4DypesKq4dGsEKkWR4kDxW",
+      "notification_id": "cmvly09g50002g638fj9o4wld"
+    },
+    {
+      "name": "crm_outage_saved_then_recovered",
+      "passed": true,
+      "application_id": "211dbe82-51c3-4140-83dc-fed6ded69aa6",
+      "attempts": 2,
+      "crm_id": 5
+    },
+    {
+      "name": "smtp_failure_retained_lead_and_recovered_once",
+      "passed": true,
+      "notification_id": "cmvly0bg60004g638wv5whzfy",
+      "attempts": [
+        {
+          "attempt": 1,
+          "outcome": "retry",
+          "errorCode": "smtp_ESOCKET"
+        },
+        {
+          "attempt": 2,
+          "outcome": "sent",
+          "errorCode": null
+        }
+      ]
+    },
+    {
+      "name": "bounded_retry_terminal_failure",
+      "passed": true,
+      "notification_id": "cmvly0ckd0005g638bfhpzhyk",
+      "attempts": 2
+    },
+    {
+      "name": "expired_delivery_lease_requires_reconciliation",
+      "passed": true
+    }
+  ],
+  "completed_at": "2026-10-24T05:12:56.692Z"
+}

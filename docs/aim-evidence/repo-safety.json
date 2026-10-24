@@ -1,0 +1,47 @@
+{
+  "crm-app": {
+    "branch": "codex/aim-leads-integration",
+    "initial_head": "cfd20ae9887ff523d2213bfe6612b315062dd00f",
+    "local_main": "cfd20ae9887ff523d2213bfe6612b315062dd00f",
+    "remote_refs": {
+      "refs/heads/main": "cfd20ae9887ff523d2213bfe6612b315062dd00f"
+    },
+    "gitlab_main": "cfd20ae9887ff523d2213bfe6612b315062dd00f"
+  },
+  "diagnosis-core-v1": {
+    "branch": "codex/diagnosis-core-v1",
+    "initial_head": "30e4511b4aba91eae928d01053dd07ab93a9ff19",
+    "local_main": "c542457bac7305905f2da4aa485487d98d548957",
+    "remote_refs": {
+      "refs/heads/main": "c542457bac7305905f2da4aa485487d98d548957",
+      "refs/pull/5/head": "019bff43f324825ce3974c2904072ba40c6976ad"
+    }
+  },
+  "report-freeze-review": {
+    "branch": "codex/report-freeze-review",
+    "initial_head": "87cb15c140e346974d18003e4801fba02a7855d1",
+    "local_main": "99d2cd2f03b318f847a525b11fe61422f5173fac",
+    "remote_refs": {
+      "refs/heads/main": "99d2cd2f03b318f847a525b11fe61422f5173fac"
+    }
+  },
+  "frozen_source_matches": 51,
+  "preserved_untracked_qa": {
+    "dynamic-photo-preview": {
+      "files": 9,
+      "bytes": 2412634
+    },
+    "no-website-real-desktop": {
+      "files": 13,
+      "bytes": 22983723
+    },
+    "real-desktop-recording-r2": {
+      "files": 12,
+      "bytes": 25975856
+    },
+    "real-desktop-recording": {
+      "files": 12,
+      "bytes": 23411904
+    }
+  }
+}

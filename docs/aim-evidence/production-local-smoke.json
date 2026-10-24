@@ -1,0 +1,11 @@
+{
+  "production_next_build_serving": true,
+  "core_restart_persistence": true,
+  "repeated_same_application_status": 200,
+  "duplicate": true,
+  "crm_id": 8,
+  "crm_status": "contacted",
+  "notification_status": "sent",
+  "notification_attempts": 2,
+  "customer_auto_created": false
+}

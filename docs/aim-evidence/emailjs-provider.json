@@ -1,0 +1,35 @@
+{
+  "checked_at": "2026-10-24T05:18:33.269Z",
+  "lead_id": 8,
+  "application_id": "a2d959d4-d44e-433a-9324-0214bd052282",
+  "notification_id": "cmvly2l3k0007g6384rhd85gc",
+  "failed": {
+    "id": "cmvly2l3k0007g6384rhd85gc",
+    "status": "failed",
+    "attempts": 1,
+    "errorCode": "emailjs_http_403"
+  },
+  "recovered": {
+    "id": "cmvly2l3k0007g6384rhd85gc",
+    "status": "sent",
+    "attempts": 2,
+    "errorCode": null
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "outcome": "failed",
+      "errorCode": "emailjs_http_403",
+      "createdAt": "2026-10-24T05:18:28.758Z"
+    },
+    {
+      "attempt": 2,
+      "outcome": "sent",
+      "errorCode": null,
+      "createdAt": "2026-10-24T05:18:33.265Z"
+    }
+  ],
+  "provider_accepted_at": "2026-10-24T05:18:33.262Z",
+  "mailbox_receipt": "verified_actual_company_inbox_by_user",
+  "mailbox_receipt_evidence": "company-inbox-receipt.json"
+}

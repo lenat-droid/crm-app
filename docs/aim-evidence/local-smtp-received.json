@@ -1,0 +1,11 @@
+{
+  "id": "4DypesKq4dGsEKkWR4kDxW",
+  "subject": "[AIM] New setup request — AIM-E2E-2026-10-24T05-12-51-210Z",
+  "to": [
+    {
+      "Name": "",
+      "Address": "operations@example.test"
+    }
+  ],
+  "text": "Restaurant: AIM-E2E-2026-10-24T05-12-51-210Z\r\nSource: AIM Website\r\nSubmitted: 2026-10-24T05:12:51.400Z\r\nCRM (login required): http://127.0.0.1:3000/leads/3\r\nNotification: cmvly09g50002g638fj9o4wld\r\n"
+}
