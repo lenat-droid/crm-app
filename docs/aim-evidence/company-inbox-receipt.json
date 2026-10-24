@@ -1,0 +1,19 @@
+{
+  "receipt_verified": true,
+  "evidence_source": "User directly inspected the actual company inbox and supplied received message details in this chat",
+  "automated_inbox_access": false,
+  "automated_access_limitation": "Browser site-safety policy blocked the company webmail; no workaround used",
+  "from_name": "AIM Growth Manager",
+  "from": "support@aipocketstore.com",
+  "to": "support@aipocketstore.com",
+  "received_time_displayed": "2026年10月24日 13:18 (星期六)",
+  "display_timezone": "not provided",
+  "subject": "🍽️ New Demo Request — AIM CRM Browser Acceptance 20261023",
+  "body": "Subject: 🍽️ New Demo Request — AIM CRM Browser Acceptance 20261023\nName: AIM Growth Manager\nRestaurant: AIM CRM Browser Acceptance 20261023\nEmail: support@aipocketstore.com\nPhone: See protected CRM record\nInterested: Restaurant: AIM CRM Browser Acceptance 20261023\nSource: AIM Website\nSubmitted: 2026-10-24T05:14:39.713Z\nCRM (login required): http://127.0.0.1:3000/leads/8\nNotification: cmvly2l3k0007g6384rhd85gc",
+  "notification_id": "cmvly2l3k0007g6384rhd85gc",
+  "lead_id": 8,
+  "contains_source": true,
+  "contains_submitted_time": true,
+  "contains_protected_crm_link": true,
+  "synthetic_customer_contact_only": true
+}

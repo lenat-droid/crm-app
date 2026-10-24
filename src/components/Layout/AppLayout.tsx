@@ -58,6 +58,7 @@ const menuGroupsZh: MenuItem[] = [
     label: '記錄類',
     children: [
       { key: '/records', icon: <HistoryOutlined />, label: '记录总览' },
+      { key: '/leads', icon: <UserAddOutlined />, label: '线索及 AIM 申请' },
       { key: '/leads/new', icon: <UserAddOutlined />, label: '新建线索' },
       { key: '/quick-checkin', icon: <CustomerServiceOutlined />, label: '每日速报' },
       { key: '/visits', icon: <EnvironmentOutlined />, label: '拜访记录' },
@@ -100,6 +101,7 @@ const menuGroupsEn: MenuItem[] = [
     label: 'Records',
     children: [
       { key: '/records', icon: <HistoryOutlined />, label: 'Records Overview' },
+      { key: '/leads', icon: <UserAddOutlined />, label: 'Leads & AIM Requests' },
       { key: '/leads/new', icon: <UserAddOutlined />, label: 'New Lead' },
       { key: '/quick-checkin', icon: <CustomerServiceOutlined />, label: 'Daily Check-in' },
       { key: '/visits', icon: <EnvironmentOutlined />, label: 'Visit Records' },
@@ -202,6 +204,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith('/support-tickets')) return '/support-tickets'
     if (pathname.startsWith('/subscriptions')) return '/subscriptions'
     if (pathname.startsWith('/leads/new')) return '/leads/new'
+    if (pathname.startsWith('/leads')) return '/leads'
     if (pathname.startsWith('/records')) return '/records'
     if (pathname.startsWith('/admin/users')) return '/admin/users'
     if (pathname.startsWith('/exports')) return '/exports'

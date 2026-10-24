@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { leadScope } from '@/lib/aim-leads'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -75,11 +76,12 @@ export async function GET(req: NextRequest) {
   // createdAt desc), which is exactly enough to slice the merged page —
   // avoids loading entire tables into memory.
   const fetchLimit = page * pageSize
+  const scopedLeads = { AND: [await leadScope(session, leadWhere), ...(customerId ? [{ customerId: parseInt(customerId) }] : [])] }
 
   const [leads, communications, visits, leadTotal, commTotal, visitTotal] = await Promise.all([
     fetchLeads
       ? prisma.lead.findMany({
-          where: leadWhere,
+          where: scopedLeads,
           include: {
             customer: { select: { id: true, name: true } },
             registeredBy: { select: { id: true, name: true } },
@@ -115,7 +117,7 @@ export async function GET(req: NextRequest) {
         })
       : Promise.resolve([]),
 
-    fetchLeads ? prisma.lead.count({ where: leadWhere }) : Promise.resolve(0),
+    fetchLeads ? prisma.lead.count({ where: scopedLeads }) : Promise.resolve(0),
     fetchCheckins ? prisma.communication.count({ where: commWhere }) : Promise.resolve(0),
     fetchVisits ? prisma.visit.count({ where: visitWhere }) : Promise.resolve(0),
   ])

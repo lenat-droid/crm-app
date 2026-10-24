@@ -1,0 +1,23 @@
+{
+  "checked_at": "2026-10-24T05:20:10.926Z",
+  "lead_id": 8,
+  "application_id": "a2d959d4-d44e-433a-9324-0214bd052282",
+  "source": "AIM Website",
+  "status": "contacted",
+  "notes": "Synthetic browser acceptance: operator reviewed AIM request.",
+  "notification_status": "sent",
+  "attempts": [
+    {
+      "attempt": 1,
+      "outcome": "failed",
+      "errorCode": "emailjs_http_403"
+    },
+    {
+      "attempt": 2,
+      "outcome": "sent",
+      "errorCode": null
+    }
+  ],
+  "customer_id": null,
+  "synthetic_contact": true
+}

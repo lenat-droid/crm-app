@@ -1,0 +1,8 @@
+{
+  "database": "crm_aim_migration_check",
+  "before_hash": "d556a40f9cd1936dd7b91c4e56307482",
+  "after_hash": "d556a40f9cd1936dd7b91c4e56307482",
+  "same": true,
+  "historical_lead_count": 1,
+  "notification_count": 0
+}
