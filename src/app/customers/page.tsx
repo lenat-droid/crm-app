@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Table, Card, Button, Input, Select, Space, Tag, Typography, Modal, Form, Popconfirm, Tooltip } from 'antd'
-import { PlusOutlined, SearchOutlined, ReloadOutlined, FilterOutlined } from '@ant-design/icons'
+import { Table, Card, Button, Input, Select, Space, Tag, Typography, Modal, Form, Popconfirm, Tooltip, Checkbox } from 'antd'
+import { PlusOutlined, SearchOutlined, ReloadOutlined, FilterOutlined, EditOutlined } from '@ant-design/icons'
 import { useRouter } from 'next/navigation'
-import AppLayout from '@/components/Layout/AppLayout'
 import { toastSuccess, handleApiError } from '@/lib/toast'
+import { PRODUCT_FIELDS, INTEREST_LEVELS } from '@/lib/constants'
+import AppLayout from '@/components/Layout/AppLayout'
 
 const { Title } = Typography
 
@@ -27,6 +28,17 @@ const interestLabels: Record<string, string> = {
   PURCHASED: '已購買',
 }
 
+// Human-readable labels for product fields
+const productFieldLabels: Record<string, string> = {
+  posStatus: 'POS',
+  psWebsiteStatus: 'PS官網',
+  smtStatus: 'SMT',
+  platformManagedStatus: '平台托管',
+  aiCamStatus: 'AI Cam',
+  omeStatus: 'OME',
+  smartRobotStatus: '智能機器人',
+}
+
 export default function CustomersPage() {
   const router = useRouter()
   const [customers, setCustomers] = useState<any[]>([])
@@ -38,6 +50,15 @@ export default function CustomersPage() {
   const [region, setRegion] = useState<string>()
   const [statusFilter, setStatusFilter] = useState<string>()
   const [customerStatusFilter, setCustomerStatusFilter] = useState<string>()
+  // Product interest filter
+  const [productField, setProductField] = useState<string>()
+  const [productInterest, setProductInterest] = useState<string>()
+  // Bulk edit
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [bulkModalOpen, setBulkModalOpen] = useState(false)
+  const [bulkForm] = Form.useForm()
+  const [bulkUpdating, setBulkUpdating] = useState(false)
+  // Create customer modal
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [createForm] = Form.useForm()
   const [creating, setCreating] = useState(false)
@@ -50,6 +71,8 @@ export default function CustomersPage() {
       if (region) params.set('region', region)
       if (statusFilter) params.set('status', statusFilter)
       if (customerStatusFilter) params.set('customerStatus', customerStatusFilter)
+      if (productField) params.set('productField', productField)
+      if (productInterest) params.set('productInterest', productInterest)
 
       const res = await fetch(`/api/customers?${params}`)
       const data = await res.json()
@@ -97,9 +120,31 @@ export default function CustomersPage() {
     }
   }
 
+  const handleBulkEdit = async (values: any) => {
+    setBulkUpdating(true)
+    try {
+      const res = await fetch('/api/customers/bulk', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedRowKeys.map(Number), data: values }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      const data = await res.json()
+      toastSuccess(`已更新 ${data.updated} 個客戶`)
+      setBulkModalOpen(false)
+      bulkForm.resetFields()
+      setSelectedRowKeys([])
+      fetchCustomers()
+    } catch (err) {
+      handleApiError(err, '批量更新失敗')
+    } finally {
+      setBulkUpdating(false)
+    }
+  }
+
   useEffect(() => {
     fetchCustomers()
-  }, [page, pageSize, region, statusFilter, customerStatusFilter])
+  }, [page, pageSize, region, statusFilter, customerStatusFilter, productField, productInterest])
 
   /** Highlight search keyword in text */
   const highlightText = (text: string | null | undefined) => {
@@ -201,6 +246,22 @@ export default function CustomersPage() {
     },
   ]
 
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
+  }
+
+  // Filter options — product fields only include those the customer list shows tags for
+  const filterProductFields = PRODUCT_FIELDS.map(f => ({
+    label: productFieldLabels[f] || f,
+    value: f,
+  }))
+
+  const filterProductInterests = INTEREST_LEVELS.map(level => ({
+    label: interestLabels[level],
+    value: level,
+  }))
+
   return (
     <AppLayout>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -244,6 +305,24 @@ export default function CustomersPage() {
             ]}
           />
           <Select
+            placeholder="按產品興趣"
+            allowClear
+            style={{ width: 150 }}
+            value={productField}
+            onChange={val => { setProductField(val); setProductInterest(undefined); setPage(1) }}
+            options={filterProductFields}
+          />
+          {productField && (
+            <Select
+              placeholder="興趣程度"
+              allowClear
+              style={{ width: 150 }}
+              value={productInterest}
+              onChange={val => { setProductInterest(val); setPage(1) }}
+              options={filterProductInterests}
+            />
+          )}
+          <Select
             placeholder="客戶狀態"
             allowClear
             style={{ width: 120 }}
@@ -262,12 +341,30 @@ export default function CustomersPage() {
         </Space>
       </div>
 
+      {/* Bulk action bar */}
+      {selectedRowKeys.length > 0 && (
+        <Card style={{ marginBottom: 16 }}>
+          <Space>
+            <Tag color="blue">已選 {selectedRowKeys.length} 個</Tag>
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => setBulkModalOpen(true)}
+              disabled={selectedRowKeys.length === 0}
+            >
+              批量編輯
+            </Button>
+            <Button onClick={() => setSelectedRowKeys([])}>取消選擇</Button>
+          </Space>
+        </Card>
+      )}
+
       <Card>
         <Table
           dataSource={customers}
           columns={columns}
           rowKey="id"
           loading={loading}
+          rowSelection={rowSelection}
           pagination={{
             current: page,
             pageSize,
@@ -354,6 +451,76 @@ export default function CustomersPage() {
           </Form.Item>
           <Form.Item name="notes" label="備註">
             <Input.TextArea rows={3} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Bulk Edit Modal */}
+      <Modal
+        title={`批量編輯 (${selectedRowKeys.length} 個客戶)`}
+        open={bulkModalOpen}
+        onCancel={() => { setBulkModalOpen(false); bulkForm.resetFields() }}
+        onOk={() => bulkForm.submit()}
+        confirmLoading={bulkUpdating}
+        okText="確認更新"
+        cancelText="取消"
+        width={480}
+      >
+        <Form
+          form={bulkForm}
+          layout="vertical"
+          onFinish={handleBulkEdit}
+          style={{ marginTop: 16 }}
+        >
+          <Form.Item name="contactStatus" label="接觸狀態">
+            <Select
+              placeholder="不修改請留空"
+              allowClear
+              options={[
+                { label: '合作中', value: '合作中' },
+                { label: '已建联', value: '已建联' },
+                { label: '已流失', value: '已流失' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="type" label="類別">
+            <Select
+              placeholder="不修改請留空"
+              allowClear
+              options={[
+                { label: '茶餐廳', value: '茶餐廳' },
+                { label: '正餐', value: '正餐' },
+                { label: '酒樓', value: '酒樓' },
+                { label: '火鍋', value: '火鍋' },
+                { label: '快餐', value: '快餐' },
+                { label: '其他', value: '其他' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="storeType" label="店鋪類型">
+            <Select
+              placeholder="不修改請留空"
+              allowClear
+              options={[
+                { label: '單店', value: '單店' },
+                { label: '連鎖', value: '連鎖' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="region" label="區域">
+            <Select
+              placeholder="不修改請留空"
+              allowClear
+              options={[
+                { label: 'LA EAST', value: 'LA EAST' },
+                { label: 'LA DOWNTOWN', value: 'LA DOWNTOWN' },
+                { label: 'LA WEST', value: 'LA WEST' },
+                { label: 'ORANGE COUNTY', value: 'ORANGE COUNTY' },
+                { label: 'WESTERN INLAND EMPIRE', value: 'WESTERN INLAND EMPIRE' },
+                { label: 'SOUTH BAY', value: 'SOUTH BAY' },
+                { label: 'OUT OF CALIFORNIA', value: 'OUT OF CALIFORNIA' },
+              ]}
+            />
           </Form.Item>
         </Form>
       </Modal>

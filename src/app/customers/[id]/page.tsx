@@ -6,7 +6,7 @@ import {
   message, Button, Timeline, Modal, Form, Input, InputNumber, DatePicker, Table, Empty,
   Progress, Rate, Row, Col, Statistic, Divider,
 } from 'antd'
-import { EditOutlined, PlusOutlined, UserOutlined, ShopOutlined, EnvironmentOutlined, IdcardOutlined, TagOutlined, DollarOutlined, CheckCircleOutlined, WarningOutlined, HeartOutlined } from '@ant-design/icons'
+import { EditOutlined, PlusOutlined, UserOutlined, ShopOutlined, EnvironmentOutlined, IdcardOutlined, TagOutlined, DollarOutlined, CheckCircleOutlined, WarningOutlined, HeartOutlined, BarChartOutlined } from '@ant-design/icons'
 import { Radar as RadarChart } from '@ant-design/charts'
 import { useParams, useRouter } from 'next/navigation'
 import dayjs from 'dayjs'
@@ -14,6 +14,7 @@ import AppLayout from '@/components/Layout/AppLayout'
 import { useSession } from 'next-auth/react'
 import { REGIONS, CUSTOMER_TYPES, CUSTOMER_TIERS, CUSTOMER_STATUSES, CUSTOMER_SOURCES, ONBOARDING_STATUSES } from '@/lib/constants'
 import { toastSuccess, handleApiError } from '@/lib/toast'
+import { PRODUCT_KEY_LABELS } from '@/lib/constants'
 
 const { Title, Text } = Typography
 
@@ -67,6 +68,9 @@ export default function CustomerDetailPage() {
   const [profileLoading, setProfileLoading] = useState(false)
   const [merchantProfile, setMerchantProfile] = useState<any>(null)
   const [userOptions, setUserOptions] = useState<{ id: number; name: string }[]>([])
+  // Operating data
+  const [deployments, setDeployments] = useState<any[]>([])
+  const [recentTransactions, setRecentTransactions] = useState<any[]>([])
 
   const fetchCustomer = async () => {
     try {
@@ -84,6 +88,15 @@ export default function CustomerDetailPage() {
     fetchCustomer()
     fetchMerchantProfile()
     fetch('/api/users/list').then(r => r.json()).then(setUserOptions).catch(() => {})
+    // Fetch operating data
+    fetch(`/api/deployments?customerId=${params.id}`)
+      .then(r => r.json())
+      .then(d => setDeployments(d.deployments || []))
+      .catch(() => {})
+    fetch(`/api/transactions?customerId=${params.id}&pageSize=5`)
+      .then(r => r.json())
+      .then(d => setRecentTransactions(d.metrics || []))
+      .catch(() => {})
   }, [params.id])
 
   const handleSaveProducts = async (values: any) => {
@@ -691,6 +704,133 @@ export default function CustomerDetailPage() {
                       rowKey="id"
                       pagination={false}
                       locale={{ emptyText: <Empty description="暫無訂閱記錄" /> }}
+                    />
+                  </div>
+                )
+              })(),
+            },
+            {
+              key: 'operating',
+              label: (
+                <span>
+                  <BarChartOutlined /> 经营数据
+                </span>
+              ),
+              children: (() => {
+                const activeDeployments = deployments.filter((d: any) => d.status === 'ACTIVE')
+                const totalDeploymentRevenue = activeDeployments.reduce((s: number, d: any) => s + (d.monthlyFee || 0), 0)
+                const totalTxRevenue = recentTransactions.reduce((s: number, t: any) => s + (t.revenue || 0), 0)
+                const totalTxGmv = recentTransactions.reduce((s: number, t: any) => s + (t.gmv || 0), 0)
+                const totalTxOrders = recentTransactions.reduce((s: number, t: any) => s + (t.orders || 0), 0)
+
+                const deploymentColumns = [
+                  { title: '产品', dataIndex: 'productKey', key: 'productKey', render: (v: string) => <Tag>{PRODUCT_KEY_LABELS[v] || v}</Tag> },
+                  {
+                    title: '状态',
+                    dataIndex: 'status',
+                    key: 'status',
+                    render: (v: string) => {
+                      const colors: Record<string, string> = { ACTIVE: 'green', CHURNED: 'red', PAUSED: 'orange' }
+                      const labels: Record<string, string> = { ACTIVE: '活跃', CHURNED: '流失', PAUSED: '暂停' }
+                      return <Tag color={colors[v]}>{labels[v] || v}</Tag>
+                    },
+                  },
+                  { title: '方案', dataIndex: 'plan', key: 'plan', render: (v: string) => <Tag>{v || '-'}</Tag> },
+                  { title: '月费', dataIndex: 'monthlyFee', key: 'monthlyFee', render: (v: number) => `$${v.toLocaleString()}` },
+                  { title: '开通日期', dataIndex: 'deployedAt', key: 'deployedAt', render: (v: string) => dayjs(v).format('YYYY-MM-DD') },
+                ]
+
+                const transactionColumns = [
+                  { title: '日期', dataIndex: 'metricDate', key: 'metricDate', render: (v: string) => dayjs(v).format('YYYY-MM-DD') },
+                  { title: '产品', dataIndex: 'productKey', key: 'productKey', render: (v: string) => <Tag>{PRODUCT_KEY_LABELS[v] || v}</Tag> },
+                  { title: 'GMV', dataIndex: 'gmv', key: 'gmv', render: (v: number) => `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
+                  { title: 'Orders', dataIndex: 'orders', key: 'orders' },
+                  { title: 'Revenue', dataIndex: 'revenue', key: 'revenue', render: (v: number) => `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
+                  {
+                    title: '类型',
+                    dataIndex: 'revenueType',
+                    key: 'revenueType',
+                    render: (v: string) => {
+                      const labels: Record<string, string> = { TRANSACTION: '交易', SUBSCRIPTION: '订阅', AI_TOKEN: 'AI Token' }
+                      return <Tag>{labels[v] || v}</Tag>
+                    },
+                  },
+                ]
+
+                return (
+                  <div>
+                    {/* Product Deployments */}
+                    <Text strong style={{ marginBottom: 8, display: 'block' }}>产品开通状态</Text>
+                    {activeDeployments.length > 0 ? (
+                      <Table
+                        dataSource={activeDeployments}
+                        columns={deploymentColumns}
+                        rowKey="id"
+                        pagination={false}
+                        size="small"
+                        style={{ marginBottom: 16 }}
+                      />
+                    ) : (
+                      <Empty description="暂无产品开通记录" style={{ marginBottom: 16 }} />
+                    )}
+
+                    {/* Contract info from subscriptions */}
+                    <Text strong style={{ marginBottom: 8, display: 'block' }}>合同状态</Text>
+                    {(customer.subscriptions || []).length > 0 ? (
+                      <Table
+                        dataSource={customer.subscriptions}
+                        columns={[
+                          { title: '产品', dataIndex: ['product', 'name'], key: 'product' },
+                          {
+                            title: '状态',
+                            dataIndex: 'status',
+                            key: 'status',
+                            render: (v: string) => {
+                              const colors: Record<string, string> = { ACTIVE: 'green', CANCELLED: 'red', EXPIRED: 'orange', TRIALING: 'blue', PENDING_SIGNATURE: 'gold' }
+                              const labels: Record<string, string> = { ACTIVE: '生效中', CANCELLED: '已取消', EXPIRED: '已到期', TRIALING: '试用中', PENDING_SIGNATURE: '待签署' }
+                              return <Tag color={colors[v]}>{labels[v] || v}</Tag>
+                            },
+                          },
+                          { title: '计费开始', dataIndex: 'billingStartDate', key: 'billingStartDate', render: (v: string | null) => v ? dayjs(v).format('YYYY-MM-DD') : '-' },
+                          { title: '合同结束', dataIndex: 'contractEndDate', key: 'contractEndDate', render: (v: string | null) => v ? dayjs(v).format('YYYY-MM-DD') : '-' },
+                        ]}
+                        rowKey="id"
+                        pagination={false}
+                        size="small"
+                        style={{ marginBottom: 16 }}
+                      />
+                    ) : (
+                      <Empty description="暂无合同记录" style={{ marginBottom: 16 }} />
+                    )}
+
+                    {/* Recent Transactions Summary */}
+                    <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                      <Col span={8}>
+                        <Card size="small">
+                          <Statistic title="Revenue" value={totalTxRevenue} prefix="$" precision={2} valueStyle={{ fontSize: 16, color: '#1890ff' }} />
+                        </Card>
+                      </Col>
+                      <Col span={8}>
+                        <Card size="small">
+                          <Statistic title="GMV" value={totalTxGmv} prefix="$" precision={2} valueStyle={{ fontSize: 16, color: '#722ed1' }} />
+                        </Card>
+                      </Col>
+                      <Col span={8}>
+                        <Card size="small">
+                          <Statistic title="Orders" value={totalTxOrders} valueStyle={{ fontSize: 16, color: '#faad14' }} />
+                        </Card>
+                      </Col>
+                    </Row>
+
+                    {/* Recent Transactions */}
+                    <Text strong style={{ marginBottom: 8, display: 'block' }}>最近交易记录</Text>
+                    <Table
+                      dataSource={recentTransactions}
+                      columns={transactionColumns}
+                      rowKey="id"
+                      pagination={false}
+                      size="small"
+                      locale={{ emptyText: <Empty description="暂无交易记录" /> }}
                     />
                   </div>
                 )

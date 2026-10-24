@@ -36,6 +36,8 @@ model User {
   createdSegments   CustomerSegment[]
   exportJobs        ExportJob[]
   customerLogs      CustomerLog[]
+  revenueRecords    RevenueRecord[]
+  transactionMetrics TransactionMetric[]
 }
 
 model Customer {
@@ -95,6 +97,9 @@ model Customer {
   leads            Lead[]
   signNowDocuments SignNowDocument[]
   customerLogs      CustomerLog[]
+  revenueRecords    RevenueRecord[]
+  transactionMetrics TransactionMetric[]
+  productDeployments ProductDeployment[]
   profile           MerchantProfile?
 }
 
@@ -304,6 +309,11 @@ model Subscription {
   notes         String?
   salesPersonId Int?
   salesPerson   User?    @relation("SubscriptionSalesPerson", fields: [salesPersonId], references: [id])
+
+  // Operating data (v1.3.0)
+  billingStartDate DateTime? // Contract billing start (for Revenue tracking)
+  contractEndDate  DateTime? // Contract end date
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -377,6 +387,78 @@ model CustomerLog {
 
   @@index([customerId])
   @@index([customerId, createdAt])
+}
+
+// ── Revenue Records (v1.3.0) ──
+// Manual entry + API ingestion of revenue data.
+// Tracks revenue from multiple sources: SUBSCRIPTION / TRANSACTION / AI_TOKEN
+model RevenueRecord {
+  id            Int      @id @default(autoincrement())
+  customerId    Int?     // Optional: link to specific customer (null = aggregated/enterprise)
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  productKey    String   // pos/pocketStore/loyalty/smt/aiManager/other
+  revenueType   String   // SUBSCRIPTION / TRANSACTION / AI_TOKEN
+  amount        Float
+  currency      String   @default("USD")
+  periodStart   DateTime // Revenue period start
+  periodEnd     DateTime // Revenue period end
+  recordDate    DateTime // Date the record was entered
+  source        String   @default("manual") // manual / api / system
+  notes         String?
+  createdById   Int?
+  createdBy     User?    @relation(fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([productKey])
+  @@index([revenueType])
+  @@index([periodStart, periodEnd])
+}
+
+// ── Transaction Metrics per Store (v1.3.0) ──
+// Stores daily/weekly transaction data: GMV, orders, revenue.
+// Ingested via API or manual entry.
+model TransactionMetric {
+  id            Int      @id @default(autoincrement())
+  customerId    Int
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productKey    String   // pos/pocketStore/loyalty/smt/aiManager/other
+  metricDate    DateTime // Date of this metric
+  gmv           Float    @default(0) // Gross Merchandise Volume
+  orders        Int      @default(0) // Order count
+  revenue       Float    @default(0) // Revenue/commission for this metric
+  revenueType   String   @default("TRANSACTION") // TRANSACTION / SUBSCRIPTION / AI_TOKEN
+  notes         String?
+  source        String   @default("manual") // manual / api / system
+  createdById   Int?
+  createdBy     User?    @relation(fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([customerId, metricDate])
+  @@index([productKey, metricDate])
+  @@index([metricDate])
+}
+
+// ── Product Deployment (v1.3.0) ──
+// Tracks when a customer was deployed with a specific product.
+// Replaces the old productInterest approach for "usage" counts.
+model ProductDeployment {
+  id            Int      @id @default(autoincrement())
+  customerId    Int
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productKey    String   // pocketStore/pos/loyalty/smt/aiManager
+  deployedAt    DateTime // When the product was first deployed
+  status        String   @default("ACTIVE") // ACTIVE / CHURNED / PAUSED
+  plan          String?  // Plan tier: FREE / BASIC / PRO
+  monthlyFee    Float    @default(0) // Monthly fee for this deployment
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([customerId, productKey])
+  @@index([productKey])
 }
 model CustomerSegment {
   id            Int      @id @default(autoincrement())

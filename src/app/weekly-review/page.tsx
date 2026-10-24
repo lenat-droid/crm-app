@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import {
   Card, Row, Col, Typography, Tag, Table, Space, Button, Segmented, Statistic, Empty, Select, Divider,
 } from 'antd'
@@ -20,24 +21,48 @@ export default function WeeklyReviewPage() {
   const [compareData, setCompareData] = useState<any[]>([])
   const [includeCompare, setIncludeCompare] = useState(true)
   const [selectedWeek, setSelectedWeek] = useState(dayjs().subtract(1, 'week').format('YYYY-MM-DD'))
+  const { data: session } = useSession()
+  const isMgr = session?.user?.role === 'ADMIN' || session?.user?.role === 'SALES_MGR'
+  const isAdmin = session?.user?.role === 'ADMIN'
 
   const fetchData = useCallback(() => {
     setLoading(true)
     const params = `?weekStart=${encodeURIComponent(selectedWeek)}&compare=${includeCompare}`
+    const weekStartISO = dayjs(selectedWeek).startOf('isoWeek').toISOString()
 
     Promise.all([
       fetch(`/api/metrics/snapshot?weeks=4`).then(r => r.json()),
       fetch(`/api/team-stats${params}`).then(r => r.json()),
-    ]).then(([snapshotRes, teamRes]) => {
-      // Find the matching week in snapshots
-      const targetSnapshot = (snapshotRes.snapshots || []).find(
-        (s: any) => s.weekStart === dayjs(selectedWeek).startOf('isoWeek').toISOString()
+    ]).then(async ([snapshotRes, teamRes]) => {
+      let snapshots = snapshotRes.snapshots || []
+
+      // Auto-compute snapshot for the selected week if missing
+      let targetSnapshot = snapshots.find(
+        (s: any) => s.weekStart === weekStartISO
       )
+      if (!targetSnapshot && (isMgr || isAdmin)) {
+        try {
+          const createRes = await fetch('/api/metrics/snapshot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ weekStart: selectedWeek }),
+          })
+          if (createRes.ok) {
+            // Refresh snapshots to pick up the newly created one
+            const refreshed = await fetch('/api/metrics/snapshot?weeks=4').then(r => r.json())
+            snapshots = refreshed.snapshots || []
+            targetSnapshot = snapshots.find((s: any) => s.weekStart === weekStartISO)
+          }
+        } catch (err) {
+          console.error('Auto-compute snapshot failed:', err)
+        }
+      }
+
       setWeeklyData(targetSnapshot || null)
       setTeamData(teamRes.currentWeek || [])
       setCompareData(teamRes.compare || [])
     }).catch(console.error).finally(() => setLoading(false))
-  }, [selectedWeek, includeCompare])
+  }, [selectedWeek, includeCompare, isMgr, isAdmin])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -225,7 +250,7 @@ export default function WeeklyReviewPage() {
         </Row>
       ) : (
         <Card style={{ marginBottom: 16 }}>
-          <Empty description="該週暂无快照數據。請先觸發一次快照計算。" />
+          <Empty description={isAdmin ? '該週暂无快照數據，正在自動計算中…' : '該週暂无快照數據，請聯繫管理員觸發計算。'} />
         </Card>
       )}
 

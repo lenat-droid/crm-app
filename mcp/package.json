@@ -1,0 +1,8 @@
+{
+  "name": "crm-mcp-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx mcp/mcp-server.ts"
+  }
+}
