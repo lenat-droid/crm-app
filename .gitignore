@@ -6,3 +6,9 @@ node_modules/
 .DS_Store
 tsconfig.tsbuildinfo
 .env
+.env.*
+!.env.example
+.secrets/
+.local/
+test-results/
+playwright-report/

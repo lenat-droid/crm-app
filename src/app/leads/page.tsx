@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, Typography, Table, Tag, Button, message, Breadcrumb } from 'antd'
 import { PlusOutlined, SwapRightOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import { useRouter } from 'next/navigation'
@@ -27,25 +27,30 @@ export default function LeadsPage() {
   const router = useRouter()
   const [leads, setLeads] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
 
-  const fetchLeads = async () => {
+  const fetchLeads = useCallback(async () => {
     try {
-      const res = await fetch('/api/leads')
+      const res = await fetch(`/api/leads?page=${page}`)
       const data = await res.json()
       setLeads(data.leads || [])
+      setTotal(data.total || 0)
     } catch (err) {
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }
+  }, [page])
 
-  useEffect(() => { fetchLeads() }, [])
+  useEffect(() => { fetchLeads() }, [fetchLeads])
 
   const columns = [
     { title: '名稱', dataIndex: 'name', key: 'name', width: 180 },
     { title: '電話', dataIndex: 'phone', key: 'phone', width: 140 },
     { title: '聯繫人', dataIndex: 'contactPerson', key: 'contactPerson', width: 120 },
+    { title: '郵箱', dataIndex: 'email', key: 'email', width: 220 },
+    { title: '來源', dataIndex: 'source', key: 'source', width: 140 },
     { title: '餐飲類型', dataIndex: 'foodType', key: 'foodType', width: 120 },
     { title: '需求', dataIndex: 'needs', key: 'needs', width: 200, ellipsis: true },
     {
@@ -85,7 +90,7 @@ export default function LeadsPage() {
           <Button size="small" type="link" onClick={() => router.push(`/customers/${record.customer.id}`)}>
             查看客戶 <SwapRightOutlined />
           </Button>
-        ) : null,
+        ) : <Button size="small" type="link" onClick={() => router.push(`/leads/${record.id}`)}>查看及跟進</Button>,
     },
   ]
 
@@ -102,7 +107,7 @@ export default function LeadsPage() {
         <div>
           <Title level={4} style={{ margin: 0 }}>線索管理</Title>
           <div style={{ marginTop: 4, color: '#999', fontSize: 13 }}>
-            <CheckCircleOutlined style={{ color: '#52c41a' }} /> 新建線索時自動創建客戶 + Pipeline，無需手動轉化
+            <CheckCircleOutlined style={{ color: '#52c41a' }} /> 手工新建會創建客戶及 Pipeline；AIM 申請先進入新線索，待團隊跟進。
           </div>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => router.push('/leads/new')}>
@@ -116,7 +121,7 @@ export default function LeadsPage() {
           columns={columns}
           rowKey="id"
           loading={loading}
-          pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 條` }}
+          pagination={{ pageSize: 20, current: page, total, onChange: setPage, showSizeChanger: false, showTotal: (t) => `共 ${t} 條` }}
           scroll={{ x: 1100 }}
         />
       </Card>

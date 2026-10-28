@@ -257,6 +257,44 @@ model Lead {
   visitDate      DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  // AIM intake is independent of the manual auto-conversion flow. Null on historical leads.
+  email          String?
+  aimApplicationId String? @unique
+  placeId        String?
+  reportId       String?
+  consent        Json?
+  submittedAt    DateTime?
+  region         String?
+  notification   LeadNotification?
+}
+
+// Transactional outbox: at most one new-lead notification per lead.
+model LeadNotification {
+  id             String   @id @default(cuid())
+  leadId         Int      @unique
+  lead           Lead     @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  status         String   @default("pending") // pending / sending / retry / sent / failed / uncertain
+  attempts       Int      @default(0)
+  nextAttemptAt  DateTime @default(now())
+  lockedAt       DateTime?
+  sentAt         DateTime?
+  messageId      String?
+  lastError      String?  // allowlisted code only; never raw SMTP responses or contact data
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  logs           LeadNotificationAttempt[]
+  @@index([status, nextAttemptAt])
+}
+
+model LeadNotificationAttempt {
+  id             Int      @id @default(autoincrement())
+  notificationId String
+  notification   LeadNotification @relation(fields: [notificationId], references: [id], onDelete: Restrict)
+  attempt        Int
+  outcome        String
+  errorCode      String?
+  createdAt      DateTime @default(now())
+  @@unique([notificationId, attempt])
 }
 
 // ── Product Catalog (dynamic, replaces hardcoded 7 products) ──

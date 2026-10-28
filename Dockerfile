@@ -33,8 +33,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-# Copy full node_modules so prisma CLI + tsx are available for db push and seed
+# Prisma migrations and the separate notification worker use these dependencies.
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/aim-notifications.ts ./scripts/aim-notifications.ts
+COPY --from=builder --chown=nextjs:nodejs /app/src/lib/aim-notifications.ts ./src/lib/aim-notifications.ts
+COPY --from=builder --chown=nextjs:nodejs /app/src/lib/prisma.ts ./src/lib/prisma.ts
 
 # Ensure uploads directory exists and is writable by nextjs
 RUN mkdir -p /app/public/uploads
@@ -46,4 +49,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["sh", "-c", "npx prisma db push && npx prisma db seed && node server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node server.js"]
