@@ -24,8 +24,7 @@ services:
     depends_on:
       - db
     restart: always
-    command: >
-      sh -c "sh scripts/migrate-deploy.sh && node server.js"
+    command: ["sh", "scripts/start.sh"]
 
 volumes:
   pgdata:

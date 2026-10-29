@@ -1,5 +1,6 @@
 # Optional overlay for the existing stack. Configure an ignored .env first.
-# Keep one notification worker per EmailJS account (provider rate limit).
+# The app container starts the notification worker itself once the mail settings
+# are complete (scripts/start.sh). Run one app replica per EmailJS account (provider rate limit).
 services:
   app:
     env_file: .env
@@ -7,11 +8,3 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set the existing CRM database URL}
       NEXTAUTH_URL: ${NEXTAUTH_URL:?Set the protected CRM URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?Set the existing authentication secret}
-  aim-notifications:
-    build: .
-    env_file: .env
-    environment:
-      DATABASE_URL: ${DATABASE_URL:?Set the existing CRM database URL}
-    command: ["node", "--import", "tsx", "scripts/aim-notifications.ts"]
-    depends_on: [app]
-    restart: unless-stopped

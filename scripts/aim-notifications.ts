@@ -1,4 +1,4 @@
-import { notificationTick, requeueNotification } from '../src/lib/aim-notifications'
+import { mailConfigProblem, notificationTick, requeueNotification } from '../src/lib/aim-notifications'
 import { prisma } from '../src/lib/prisma'
 
 async function main() {
@@ -7,6 +7,11 @@ async function main() {
     console.log('notification_requeued')
     return
   }
+  // Incomplete settings would fail every claimed job; leave the queue pending instead.
+  const problem = mailConfigProblem()
+  if (problem) { console.error(`notification_worker_not_started: ${problem}`); process.exitCode = 1; return }
+  if (process.argv.includes('--check-config')) { console.log('notification_config_ok'); return }
+  console.log('notification_worker_started')
   do {
     try { const result = await notificationTick(); if (result) console.log(JSON.stringify(result)) } catch { console.error('notification_worker_failed') }
     if (process.argv.includes('--once')) break

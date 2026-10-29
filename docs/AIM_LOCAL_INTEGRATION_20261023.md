@@ -77,7 +77,7 @@ Growth main `c542457bac7305905f2da4aa485487d98d548957`、Website main `99d2cd2f0
 | Growth | `CRM_API_URL`（CRM origin 或完整 intake URL）、`CRM_INGEST_TOKEN`；可选 `CRM_SYNC_MAX_ATTEMPTS`（默认5，上限10）、`CRM_RETRY_BASE_MS`（默认60秒） |
 | Growth 本地/代理 | `GM10_ENV_FILE`, `GM10_STATE_DIR`, `GM10_PORT`, `GM10_WEB_PORT`；测试 `GM10_NO_PROVIDER_LOOKUP=1`；未来 HTTPS 同源代理用 `GM10_WEB_ORIGIN`（精确 HTTPS origin，启用 Secure Cookie） |
 
-CRM Web 与 worker 是两个进程；Web 不隐式启动定时发送。仓库内执行：
+CRM Web 与 worker 是两个进程。容器启动命令 `scripts/start.sh` 在迁移后检查邮件配置：齐全时在后台拉起 worker（进程退出后 10 秒重启），不齐全时不启动 worker、通知保持 pending，并在日志写出 `notification_worker_not_started: missing …`（只写变量名）。worker 自身启动前也做同样检查，配置不全不会领取任务。本地 `npm run dev` 不启动 worker。仓库内执行：
 
 ```sh
 npm ci
@@ -133,8 +133,8 @@ GM10_STATE_DIR=.local/crm-e2e node gm10-api/src/local/activation-admin.mjs retry
 1. 回读 GitLab/GitHub CRM 部署源和目标环境，审核本次三个分支提交；保留 main、PR #5 和冻结源。确认现有 CRM 用户、区域及运营负责人，按已有权限分配 Owner/Region。
 2. 对现有 PostgreSQL 与 Growth SQLite 做可恢复备份；校验迁移历史。若旧 CRM 由 `db push` 初始化且没有 Prisma 基线，先比对实际 schema 与 `1_init`，确认一致后仅将 `1_init` 标记 applied，再执行新增迁移。不能对已有库重新运行初始化 SQL、seed、reset 或 `db push`。
 3. 从 Secret 注入凭证，复用已有 NextAuth Secret、EmailJS 服务和模板。CRM 与 Growth 的 ingest Token 相同且独立。生产 `CRM_PUBLIC_URL` 必须是受保护的 HTTPS CRM；先核对固定模板 To。Private Key 不进入浏览器、构建参数、Git、镜像或日志。
-4. 使用现有 GitLab 部署流程发布经审核的 CRM 分支，并运行 `prisma migrate deploy`。Docker 启动已改为迁移、不再自动 seed；可选 `docker-compose.aim.yml` 提供 worker，但本机无 Docker，未运行镜像/Compose 验收。现有旧库基线须在启动前准备完成。
-5. 由现有进程管理器常驻 Web 和单个通知 worker；监控 failed/uncertain/待处理数量及进程退出。worker 需数据库和 EmailJS 出站权限，遵守每秒一次的账号限额。
+4. 使用现有 GitLab 部署流程发布经审核的 CRM 分支，并运行 `prisma migrate deploy`。Docker 启动（`scripts/start.sh`）依次执行迁移（旧 `db push` 库自动建立基线）、邮件配置齐全时拉起通知 worker、启动 Web，不再自动 seed；`docker-compose.aim.yml` 只为 app 注入配置。本机无 Docker，未运行镜像/Compose 验收。
+5. 通知 worker 随 Web 容器常驻，无需单独部署；去掉 `MAIL_PROVIDER` 并重启即可停用。多副本时每个副本各有一个 worker：行锁保证不重复发送，但并发发送可能撞上 EmailJS 每秒一次的账号限额（按退避重试），建议单副本。监控 failed/uncertain/待处理数量。worker 需数据库和 EmailJS 出站权限。
 6. Growth Node 保持 loopback 监听及私有持久化目录，通过官网 HTTPS 同源 `/api/*` 反向代理访问；代理把上游 Host 设为实际 loopback host:port，并保留浏览器 Origin。配置精确 `GM10_WEB_ORIGIN`，不开放通配 Origin/任意 Host。官网静态资源发布与同源 API 路由需在目标环境另行校验；Python review server 是本地验收工具。
 7. 使用一条经授权的合成申请验收官网保存、CRM new、邮件实际收件、运营跟进；再验证幂等和一次安全失败恢复。验收前不重复付费采集，不用真实客户联系方式。最终启用入口前核对公司收件证据。
 8. 回滚优先回滚应用及停止 worker，保留增量列、通知任务和原申请，避免数据丢失；恢复配置后按幂等 ID 重放。数据库回滚从备份及数据比对计划执行，不删除新增数据。

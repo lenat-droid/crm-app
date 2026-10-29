@@ -39,6 +39,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts/aim-notifications.ts ./sc
 COPY --from=builder --chown=nextjs:nodejs /app/src/lib/aim-notifications.ts ./src/lib/aim-notifications.ts
 COPY --from=builder --chown=nextjs:nodejs /app/src/lib/prisma.ts ./src/lib/prisma.ts
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/migrate-deploy.sh ./scripts/migrate-deploy.sh
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/start.sh ./scripts/start.sh
 
 # Ensure uploads directory exists and is writable by nextjs
 RUN mkdir -p /app/public/uploads
@@ -50,5 +51,6 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Applies migrations; baselines a database left by the old `db push` start command (see script).
-CMD ["sh", "-c", "sh scripts/migrate-deploy.sh && node server.js"]
+# Applies migrations (baselining a database left by the old `db push` start command),
+# starts the AIM notification worker when mail settings are complete, then the web server.
+CMD ["sh", "scripts/start.sh"]

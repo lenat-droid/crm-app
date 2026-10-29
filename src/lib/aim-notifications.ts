@@ -9,12 +9,30 @@ const maxAttempts = () => Math.max(1, Math.min(10, Number(process.env.MAIL_MAX_A
 const retryMs = () => Math.max(1000, Number(process.env.MAIL_RETRY_BASE_MS) || 60000)
 const mailbox = (value: string) => /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(value)
 
-async function deliver(job: any) {
+function mailIdentity() {
   const to = required('MAIL_TO'), from = required('MAIL_FROM'), domain = required('MAIL_DOMAIN')
   if (!mailbox(to) || !mailbox(from) || !/^[a-z0-9.-]+$/i.test(domain) || !from.toLowerCase().endsWith('@' + domain.toLowerCase())) throw new DeliveryError('mail_configuration_invalid', false, true)
   const url = new URL(required('CRM_PUBLIC_URL'))
   const loopback = ['127.0.0.1', 'localhost'].includes(url.hostname)
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback) || url.username || url.password || url.search || url.hash) throw new DeliveryError('crm_link_invalid', false, true)
+  return { to, from, domain, url }
+}
+const providerKeys: Record<string, string[]> = { emailjs: ['EMAILJS_SERVICE_ID', 'EMAILJS_TEMPLATE_ID', 'EMAILJS_PUBLIC_KEY', 'EMAILJS_PRIVATE_KEY'], smtp: ['SMTP_HOST', 'SMTP_PORT'] }
+
+// deliver() fails a claimed job permanently on bad settings, so a worker checks
+// them before touching the queue. Reports variable names only, never values.
+export function mailConfigProblem(): string | null {
+  const provider = process.env.MAIL_PROVIDER || ''
+  const keys = ['MAIL_PROVIDER', 'MAIL_TO', 'MAIL_FROM', 'MAIL_DOMAIN', 'CRM_PUBLIC_URL', ...(providerKeys[provider] || []), ...(provider === 'smtp' && process.env.SMTP_USER ? ['SMTP_PASSWORD'] : [])]
+  const missing = keys.filter(key => !process.env[key])
+  if (missing.length) return `missing ${missing.join(', ')}`
+  if (!providerKeys[provider]) return 'mail_provider_invalid'
+  try { mailIdentity() } catch (e) { return e instanceof DeliveryError ? e.code : 'crm_link_invalid' }
+  return null
+}
+
+async function deliver(job: any) {
+  const { to, from, domain, url } = mailIdentity()
   const link = new URL(`/leads/${job.lead.id}`, url).href
   const submitted = job.lead.submittedAt.toISOString()
   const text = `Restaurant: ${job.lead.name}\nSource: AIM Website\nSubmitted: ${submitted}\nCRM (login required): ${link}\nNotification: ${job.id}`

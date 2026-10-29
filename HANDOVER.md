@@ -58,7 +58,7 @@ npm run dev
 
 常用命令：`npm run build` / `npm run lint` / `npm run db:studio`（可视化看库）。
 
-**Docker 一键部署**：`docker compose up --build` — 镜像启动时自动 `prisma db push && prisma db seed && node server.js`。注意 compose 里的 `NEXTAUTH_SECRET` 是占位值，生产必须替换。
+**Docker 一键部署**：`docker compose up --build` — 镜像启动时执行 `scripts/start.sh`：`prisma migrate deploy`（旧 `db push` 库自动建立基线）→ 邮件配置齐全时后台启动 AIM 通知 worker → `node server.js`，不再 seed。注意 compose 里的 `NEXTAUTH_SECRET` 是占位值，生产必须替换。
 
 ---
 
