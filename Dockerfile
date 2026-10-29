@@ -38,6 +38,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/aim-notifications.ts ./scripts/aim-notifications.ts
 COPY --from=builder --chown=nextjs:nodejs /app/src/lib/aim-notifications.ts ./src/lib/aim-notifications.ts
 COPY --from=builder --chown=nextjs:nodejs /app/src/lib/prisma.ts ./src/lib/prisma.ts
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/migrate-deploy.sh ./scripts/migrate-deploy.sh
 
 # Ensure uploads directory exists and is writable by nextjs
 RUN mkdir -p /app/public/uploads
@@ -49,4 +50,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node server.js"]
+# Applies migrations; baselines a database left by the old `db push` start command (see script).
+CMD ["sh", "-c", "sh scripts/migrate-deploy.sh && node server.js"]
