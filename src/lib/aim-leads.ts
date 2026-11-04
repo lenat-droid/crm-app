@@ -24,6 +24,16 @@ export async function leadScope(session: Session, legacy: Prisma.LeadWhereInput 
   return { OR: [{ AND: [{ aimApplicationId: null }, legacy] }, { AND: [{ aimApplicationId: { not: null } }, aim] }] }
 }
 
+// Same rule as the AIM growth service, so its numbers pass through unchanged: 10 digits,
+// or 11 starting with 1, are US numbers; anything else needs its own + and 8-15 digits.
+function aimPhone(value: string) {
+  const digits = value.replace(/\D/g, '')
+  if (digits.length === 10) return '+1' + digits
+  if (digits.length === 11 && digits[0] === '1') return '+' + digits
+  if (value.startsWith('+') && digits.length >= 8 && digits.length <= 15) return '+' + digits
+  throw new ValidationError('Invalid phone')
+}
+
 export function validateAimLead(data: unknown) {
   const b = data as Record<string, any>
   if (!b || typeof b !== 'object' || Array.isArray(b)) throw new ValidationError('Invalid intake')
@@ -34,21 +44,25 @@ export function validateAimLead(data: unknown) {
   const optional = (v: unknown, max: number) => v == null ? null : string(v, max)
   const applicationId = string(b.application_id, 80)
   if (!/^[a-zA-Z0-9_-]{8,80}$/.test(applicationId)) throw new ValidationError('Invalid application ID')
-  const email = string(b.email, 254).toLowerCase()
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ValidationError('Invalid email')
+  // The setup form sends an email; the report unlock sends a phone so the team can call.
+  const email = optional(b.email, 254)?.toLowerCase() ?? null
+  if (email !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ValidationError('Invalid email')
+  const rawPhone = optional(b.phone, 20)
+  const phone = rawPhone === null ? null : aimPhone(rawPhone)
+  if (email === null && phone === null) throw new ValidationError('Email or phone required')
   const submittedAt = string(b.submitted_at, 40)
   if (!Number.isFinite(Date.parse(submittedAt)) || Date.parse(submittedAt) > Date.now() + 300000) throw new ValidationError('Invalid submitted time')
   if (b.source !== 'AIM Website' || b.consent?.contact !== true) throw new ValidationError('Source and consent required')
   const consent = { contact: true, version: string(b.consent.version, 80), statement: string(b.consent.statement, 500), accepted_at: string(b.consent.accepted_at, 40) }
   if (!Number.isFinite(Date.parse(consent.accepted_at))) throw new ValidationError('Invalid consent time')
-  return { aimApplicationId: applicationId, name: string(b.restaurant, 160), email, contactPerson: string(b.name, 80), placeId: optional(b.place_id, 255), reportId: optional(b.report_id, 80), source: 'AIM Website', consent, submittedAt: new Date(submittedAt) }
+  return { aimApplicationId: applicationId, name: string(b.restaurant, 160), email, phone, contactPerson: string(b.name, 80), placeId: optional(b.place_id, 255), reportId: optional(b.report_id, 80), source: 'AIM Website', consent, submittedAt: new Date(submittedAt) }
 }
 
 export async function ingestAimLead(data: ReturnType<typeof validateAimLead>) {
   const existing = () => prisma.lead.findUnique({ where: { aimApplicationId: data.aimApplicationId } })
   const response = (lead: NonNullable<Awaited<ReturnType<typeof existing>>>, duplicate: boolean) => {
     // Idempotency keys cannot be reused to silently replace contact/consent data.
-    for (const key of ['name', 'email', 'contactPerson', 'placeId', 'reportId', 'source'] as const) {
+    for (const key of ['name', 'email', 'phone', 'contactPerson', 'placeId', 'reportId', 'source'] as const) {
       if (lead[key] !== data[key]) throw new ValidationError('Application ID conflict')
     }
     if (lead.submittedAt?.toISOString() !== data.submittedAt.toISOString() || JSON.stringify(lead.consent) !== JSON.stringify(data.consent)) {

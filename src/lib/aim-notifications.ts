@@ -36,11 +36,14 @@ async function deliver(job: any) {
   const link = new URL(`/leads/${job.lead.id}`, url).href
   const submitted = job.lead.submittedAt.toISOString()
   const text = `Restaurant: ${job.lead.name}\nSource: AIM Website\nSubmitted: ${submitted}\nCRM (login required): ${link}\nNotification: ${job.id}`
+  // Owners who unlock a report leave a phone so the team can call: EmailJS gets it in the
+  // template's phone field, SMTP as the first line. Email addresses stay behind the CRM login.
+  const phone: string | null = job.lead.phone || null
   const messageId = `<aim-${job.id}@${domain}>`
   if (required('MAIL_PROVIDER') === 'emailjs') {
     // The company template uses name/email/restaurant/modules. Also provide the
     // former browser aliases; a fixed server recipient never comes from intake.
-    const params = { to_email: to, name: 'AIM Growth Manager', from_name: 'AIM Growth Manager', email: from, from_email: from, restaurant: job.lead.name, phone: 'See protected CRM record', modules: text, message: text, source: 'AIM Website', submitted_at: submitted, crm_url: link, notification_id: job.id }
+    const params = { to_email: to, name: 'AIM Growth Manager', from_name: 'AIM Growth Manager', email: from, from_email: from, restaurant: job.lead.name, phone: phone || 'See protected CRM record', modules: text, message: text, source: 'AIM Website', submitted_at: submitted, crm_url: link, notification_id: job.id }
     let response: Response
     const credentials = { service_id: required('EMAILJS_SERVICE_ID'), template_id: required('EMAILJS_TEMPLATE_ID'), user_id: required('EMAILJS_PUBLIC_KEY'), accessToken: required('EMAILJS_PRIVATE_KEY'), template_params: params }
     try {
@@ -55,7 +58,7 @@ async function deliver(job: any) {
   const host = required('SMTP_HOST'), local = ['127.0.0.1', 'localhost', '::1'].includes(host)
   const transport = nodemailer.createTransport({ host, port: Number(required('SMTP_PORT')), secure: process.env.SMTP_SECURE === 'true', requireTLS: !local, auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: required('SMTP_PASSWORD') } : undefined, connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000, disableFileAccess: true, disableUrlAccess: true, logger: false, debug: false })
   try {
-    await transport.sendMail({ from, to, subject: `[AIM] New setup request — ${job.lead.name}`, text, messageId, disableFileAccess: true, disableUrlAccess: true })
+    await transport.sendMail({ from, to, subject: `[AIM] New setup request — ${job.lead.name}`, text: phone ? `Phone: ${phone}\n${text}` : text, messageId, disableFileAccess: true, disableUrlAccess: true })
     return { messageId, code: 'smtp_accepted' }
   } catch (e) {
     const err = e as { code?: string; command?: string; responseCode?: number }
