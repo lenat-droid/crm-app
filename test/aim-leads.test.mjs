@@ -52,7 +52,8 @@ test('an email lead validates as before, with no phone', () => {
 test('a phone lead needs no email, and phones are normalized like the growth service does', () => {
   const lead = validateAimLead(unlock())
   assert.deepEqual([lead.phone, lead.email, lead.consent.version], ['+13125550100', null, 'aim-report-contact-v1'])
-  for (const [typed, stored] of [['(312) 555-0100', '+13125550100'], ['1-312-555-0100', '+13125550100'], ['+44 20 7946 0958', '+442079460958'], ['+8613800138000', '+8613800138000']])
+  // A leading + is read as an international number first, even with 10 digits; without it, 10 or 1+10 digits are US.
+  for (const [typed, stored] of [['(312) 555-0100', '+13125550100'], ['1-312-555-0100', '+13125550100'], ['+1 (312) 555-0100', '+13125550100'], ['+65 6123 4567', '+6561234567'], ['+44 20 7946 0958', '+442079460958'], ['+8613800138000', '+8613800138000']])
     assert.equal(validateAimLead(unlock({ phone: typed })).phone, stored, typed)
   const both = validateAimLead(unlock({ email: 'owner@example.test' }))
   assert.deepEqual([both.email, both.phone], ['owner@example.test', '+13125550100'])
@@ -96,11 +97,14 @@ test('the intake route takes a phone-only lead and answers 400 for a bad or miss
   assert.deepEqual(await post(unlock({ application_id: 'aim-phone-route-0003', phone: undefined })), [400, { error: 'Email or phone required' }])
 })
 
-const lead = phone => ({ id: 7, name: 'Synthetic Kitchen', phone, email: phone ? null : 'owner@example.test', submittedAt: new Date(submitted) })
+// A report-unlock lead with a phone, and a setup-form lead with an email.
+const lead = phone => ({ id: 7, name: 'Synthetic Kitchen', phone, email: phone ? null : 'owner@example.test', consent: { contact: true, version: phone ? 'aim-report-contact-v1' : 'aim-setup-contact-v1' }, submittedAt: new Date(submitted) })
 const mailEnv = { MAIL_TO: 'operations@example.test', MAIL_FROM: 'aim@example.test', MAIL_DOMAIN: 'example.test', CRM_PUBLIC_URL: 'http://127.0.0.1:3000' }
+const emailjsEnv = { MAIL_PROVIDER: 'emailjs', EMAILJS_SERVICE_ID: 'synthetic-service', EMAILJS_TEMPLATE_ID: 'synthetic-template', EMAILJS_PUBLIC_KEY: 'synthetic-public', EMAILJS_PRIVATE_KEY: 'synthetic-private' }
+const smtpEnv = { MAIL_PROVIDER: 'smtp', SMTP_HOST: '127.0.0.1', SMTP_PORT: '2525' }
 
 test('the EmailJS notification fills the template phone field when the lead has one', async () => {
-  Object.assign(process.env, mailEnv, { MAIL_PROVIDER: 'emailjs', EMAILJS_SERVICE_ID: 'synthetic-service', EMAILJS_TEMPLATE_ID: 'synthetic-template', EMAILJS_PUBLIC_KEY: 'synthetic-public', EMAILJS_PRIVATE_KEY: 'synthetic-private' })
+  Object.assign(process.env, mailEnv, emailjsEnv)
   for (const phone of ['+13125550100', null]) {
     job = { id: phone ? 'notification-phone' : 'notification-email', attempts: 0, lead: lead(phone) }
     assert.equal((await notificationTick()).status, 'sent')
@@ -112,11 +116,31 @@ test('the EmailJS notification fills the template phone field when the lead has 
 })
 
 test('the SMTP notification starts with the phone; email-only leads read as before', async () => {
-  Object.assign(process.env, mailEnv, { MAIL_PROVIDER: 'smtp', SMTP_HOST: '127.0.0.1', SMTP_PORT: '2525' })
+  Object.assign(process.env, mailEnv, smtpEnv)
   for (const phone of ['+13125550100', null]) {
     job = { id: phone ? 'notification-phone' : 'notification-email', attempts: 0, lead: lead(phone) }
     assert.equal((await notificationTick()).status, 'sent')
   }
   assert.equal(mails[0].text, `Phone: +13125550100\nRestaurant: Synthetic Kitchen\nSource: AIM Website\nSubmitted: ${submitted}\nCRM (login required): http://127.0.0.1:3000/leads/7\nNotification: notification-phone`)
   assert.equal(mails[1].text, `Restaurant: Synthetic Kitchen\nSource: AIM Website\nSubmitted: ${submitted}\nCRM (login required): http://127.0.0.1:3000/leads/7\nNotification: notification-email`)
+})
+
+test('the subject calls a report-unlock lead a report contact; setup requests keep their subject', async () => {
+  // Decided by the consent version, not by the phone: a setup lead that left a phone is still a setup request.
+  const cases = [['aim-report-contact-v1', '+13125550100'], ['aim-setup-contact-v1', '+13125550100'], ['aim-setup-contact-v1', null]]
+  const deliverAll = async () => {
+    for (const [version, phone] of cases) {
+      job = { id: 'notification-subject', attempts: 0, lead: { ...lead(phone), consent: { contact: true, version } } }
+      assert.equal((await notificationTick()).status, 'sent')
+    }
+  }
+  mails.length = 0
+  Object.assign(process.env, mailEnv, smtpEnv)
+  await deliverAll()
+  assert.deepEqual(mails.map(m => m.subject), ['[AIM] New report contact — Synthetic Kitchen', '[AIM] New setup request — Synthetic Kitchen', '[AIM] New setup request — Synthetic Kitchen'])
+  // EmailJS: the company template's subject is fixed text, so the subject goes as a template value it can use.
+  sent.length = 0
+  Object.assign(process.env, mailEnv, emailjsEnv)
+  await deliverAll()
+  assert.deepEqual(sent.map(p => p.subject), ['🍽️ New report contact — Synthetic Kitchen', '🍽️ New Demo Request — Synthetic Kitchen', '🍽️ New Demo Request — Synthetic Kitchen'])
 })

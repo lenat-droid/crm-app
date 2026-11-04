@@ -24,13 +24,15 @@ export async function leadScope(session: Session, legacy: Prisma.LeadWhereInput 
   return { OR: [{ AND: [{ aimApplicationId: null }, legacy] }, { AND: [{ aimApplicationId: { not: null } }, aim] }] }
 }
 
-// Same rule as the AIM growth service, so its numbers pass through unchanged: 10 digits,
-// or 11 starting with 1, are US numbers; anything else needs its own + and 8-15 digits.
+// Same rule as the AIM growth service, so its numbers pass through unchanged: a leading +
+// means an international number (8-15 digits); without it, 10 digits, or 11 starting
+// with 1, are US numbers.
 function aimPhone(value: string) {
   const digits = value.replace(/\D/g, '')
-  if (digits.length === 10) return '+1' + digits
-  if (digits.length === 11 && digits[0] === '1') return '+' + digits
-  if (value.startsWith('+') && digits.length >= 8 && digits.length <= 15) return '+' + digits
+  if (value.startsWith('+')) {
+    if (digits.length >= 8 && digits.length <= 15) return '+' + digits
+  } else if (digits.length === 10) return '+1' + digits
+  else if (digits.length === 11 && digits[0] === '1') return '+' + digits
   throw new ValidationError('Invalid phone')
 }
 
